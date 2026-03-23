@@ -33,3 +33,6 @@ build/
 .idea/
 .vscode/
 *.iml
+
+# Secret Environment Variables
+.env
