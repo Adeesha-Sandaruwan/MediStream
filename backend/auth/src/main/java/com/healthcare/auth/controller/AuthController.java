@@ -2,6 +2,7 @@ package com.healthcare.auth.controller;
 
 import com.healthcare.auth.dto.AuthRequest;
 import com.healthcare.auth.dto.AuthResponse;
+import com.healthcare.auth.dto.GoogleAuthRequest;
 import com.healthcare.auth.dto.RegisterRequest;
 import com.healthcare.auth.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -26,5 +27,10 @@ public class AuthController {
     @PostMapping("/authenticate")
     public ResponseEntity<AuthResponse> authenticate(@RequestBody AuthRequest request) {
         return ResponseEntity.ok(authService.authenticate(request));
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<AuthResponse> googleSignIn(@RequestBody GoogleAuthRequest request) {
+        return ResponseEntity.ok(authService.googleSignIn(request));
     }
 }
