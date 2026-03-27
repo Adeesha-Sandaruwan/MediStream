@@ -55,6 +55,7 @@ public class AuthService {
         
         return AuthResponse.builder()
                 .token(jwtToken)
+                .role(user.getRole().name())
                 .build();
     }
 
@@ -73,6 +74,7 @@ public class AuthService {
         
         return AuthResponse.builder()
                 .token(jwtToken)
+                .role(user.getRole().name())
                 .build();
     }
 
@@ -101,6 +103,7 @@ public class AuthService {
 
                 return AuthResponse.builder()
                         .token(jwtToken)
+                        .role(user.getRole().name())
                         .build();
             } else {
                 throw new IllegalArgumentException("Invalid Google token");
