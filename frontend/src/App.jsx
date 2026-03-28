@@ -2,12 +2,24 @@ import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import Auth from './pages/Auth';
 import MedicalProfile from './pages/MedicalProfile';
 import PatientDashboard from './pages/PatientDashboard'; // <-- IMPORTED HERE
+import Telemedicine from './pages/Telemedicine';
 import { useAuth } from './context/AuthContext';
 
 // Stub for Teammate
 const DoctorDashboard = () => (
     <div className="max-w-7xl mx-auto px-4 py-10">
         <h1 className="text-3xl font-bold text-gray-800">Doctor Dashboard (Under Construction)</h1>
+        <p className="mt-3 text-gray-600">
+            Use Telemedicine to start or join patient video consultations.
+        </p>
+        <div className="mt-6">
+            <Link
+                to="/telemedicine"
+                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors"
+            >
+                Open Telemedicine
+            </Link>
+        </div>
     </div>
 );
 
@@ -96,6 +108,15 @@ export default function App() {
                 <Route 
                     path="/doctor-dashboard" 
                     element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
+                />
+
+                <Route
+                    path="/telemedicine"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']}>
+                            <Telemedicine />
+                        </ProtectedRoute>
+                    }
                 />
 
                 <Route 
