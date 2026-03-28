@@ -3,7 +3,9 @@ import Auth from './pages/Auth';
 import MedicalProfile from './pages/MedicalProfile';
 import PatientDashboard from './pages/PatientDashboard'; // <-- IMPORTED HERE
 import Telemedicine from './pages/Telemedicine';
+import PatientDashboard from './pages/PatientDashboard';
 import { useAuth } from './context/AuthContext';
+import MedicalReports from './pages/MedicalReports';
 
 // Stub for Teammate
 const DoctorDashboard = () => (
@@ -100,6 +102,22 @@ export default function App() {
                                     </Link>
                                 </div>
                                 <MedicalProfile />
+                            </div>
+                        </ProtectedRoute>
+                    } 
+                />
+
+                <Route 
+                    path="/reports" 
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT']}>
+                            <div className="py-6">
+                                <div className="max-w-7xl mx-auto px-4 mb-6">
+                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
+                                        &larr; Back to Dashboard
+                                    </Link>
+                                </div>
+                                <MedicalReports />
                             </div>
                         </ProtectedRoute>
                     } 

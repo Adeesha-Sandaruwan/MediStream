@@ -26,8 +26,8 @@ const PatientDashboard = () => {
                     </Link>
                 </div>
 
-                {/* Feature 2: Medical Reports (Next up on the roadmap) */}
-                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 opacity-80">
+              {/* Feature 2: Medical Reports (Active!) */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
                     <div className="flex items-center mb-4">
                         <div className="p-3 bg-indigo-100 text-indigo-600 rounded-lg">
                             <FileText size={24} />
@@ -35,12 +35,16 @@ const PatientDashboard = () => {
                         <h2 className="ml-4 text-xl font-semibold text-gray-800">Medical Reports</h2>
                     </div>
                     <p className="text-gray-600 mb-6 h-12">Upload and manage your lab reports and medical documents.</p>
-                    <button disabled className="block w-full text-center bg-gray-200 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">
-                        Coming Soon
-                    </button>
+                    <Link 
+                        to="/reports" 
+                        className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
+                    >
+                        View Reports
+                    </Link>
                 </div>
 
                 {/* Feature 3: Appointments */}
+                {/* Feature 3: Appointments (For your teammate) */}
                 <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 opacity-80">
                     <div className="flex items-center mb-4">
                         <div className="p-3 bg-green-100 text-green-600 rounded-lg">
