@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User, FileText, Calendar } from 'lucide-react';
+import { User, FileText, Calendar, Video } from 'lucide-react';
 
 const PatientDashboard = () => {
     return (
@@ -42,6 +42,8 @@ const PatientDashboard = () => {
                         View Reports
                     </Link>
                 </div>
+
+                {/* Feature 3: Appointments */}
                 {/* Feature 3: Appointments (For your teammate) */}
                 <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 opacity-80">
                     <div className="flex items-center mb-4">
@@ -50,10 +52,27 @@ const PatientDashboard = () => {
                         </div>
                         <h2 className="ml-4 text-xl font-semibold text-gray-800">Appointments</h2>
                     </div>
-                    <p className="text-gray-600 mb-6 h-12">Book and manage video consultations with doctors.</p>
+                    <p className="text-gray-600 mb-6 h-12">Book and manage your in-person or online appointments.</p>
                     <button disabled className="block w-full text-center bg-gray-200 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">
                         Coming Soon
                     </button>
+                </div>
+
+                {/* Feature 4: Telemedicine */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
+                    <div className="flex items-center mb-4">
+                        <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg">
+                            <Video size={24} />
+                        </div>
+                        <h2 className="ml-4 text-xl font-semibold text-gray-800">Telemedicine</h2>
+                    </div>
+                    <p className="text-gray-600 mb-6 h-12">Start secure live video consultations with your doctor.</p>
+                    <Link
+                        to="/telemedicine"
+                        className="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    >
+                        Open Telemedicine
+                    </Link>
                 </div>
 
             </div>
