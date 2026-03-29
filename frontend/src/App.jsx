@@ -3,7 +3,6 @@ import Auth from './pages/Auth';
 import MedicalProfile from './pages/MedicalProfile';
 import PatientDashboard from './pages/PatientDashboard'; // <-- IMPORTED HERE
 import Telemedicine from './pages/Telemedicine';
-import PatientDashboard from './pages/PatientDashboard';
 import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 
