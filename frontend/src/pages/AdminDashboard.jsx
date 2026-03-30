@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, updateUserRole, deleteUser, updateUserStatus } from '../api/adminApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon } from 'lucide-react';
+import { getAllPatients } from '../api/patientApi';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
     const [users, setUsers] = useState([]);
+    const [patientRecords, setPatientRecords] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     
@@ -18,18 +20,22 @@ const AdminDashboard = () => {
     });
 
     useEffect(() => {
-        fetchUsers();
+        fetchDashboardData();
     }, [token]);
 
-    const fetchUsers = async () => {
+    const fetchDashboardData = async () => {
         setIsLoading(true);
         setError('');
         try {
-            const data = await getAllUsers(token);
-            setUsers(data);
+            const [usersData, patientsData] = await Promise.all([
+                getAllUsers(token),
+                getAllPatients(token).catch(() => []) 
+            ]);
+            setUsers(usersData);
+            setPatientRecords(patientsData);
         } catch (err) {
             console.error(err);
-            setError('Failed to load users. Ensure Auth backend is running.');
+            setError('Failed to load system data. Ensure both Auth and Patient backends are running.');
         } finally {
             setIsLoading(false);
         }
@@ -47,7 +53,7 @@ const AdminDashboard = () => {
             await createUser(token, formData);
             setShowModal(false);
             setFormData({ email: '', password: '', role: 'PATIENT' });
-            fetchUsers();
+            fetchDashboardData();
         } catch (err) {
             console.error(err);
             setError('Failed to create user. Email might already exist.');
@@ -60,7 +66,7 @@ const AdminDashboard = () => {
         setError('');
         try {
             await updateUserRole(token, id, newRole);
-            fetchUsers();
+            fetchDashboardData();
         } catch (err) {
             console.error(err);
             setError('Failed to update user role.');
@@ -71,7 +77,7 @@ const AdminDashboard = () => {
         setError('');
         try {
             await updateUserStatus(token, id, newStatus);
-            fetchUsers();
+            fetchDashboardData();
         } catch (err) {
             console.error(err);
             setError('Failed to update user status.');
@@ -83,7 +89,7 @@ const AdminDashboard = () => {
         setError('');
         try {
             await deleteUser(token, id);
-            fetchUsers();
+            fetchDashboardData();
         } catch (err) {
             console.error(err);
             setError('Failed to delete user.');
@@ -96,16 +102,19 @@ const AdminDashboard = () => {
         return <AlertOctagon size={16} className="mr-1 text-red-600" />;
     };
 
+    const pendingDoctorsCount = users.filter(u => u.role === 'DOCTOR' && u.verificationStatus === 'PENDING').length;
+    const totalPatientsCount = users.filter(u => u.role === 'PATIENT').length;
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-                    <ShieldAlert className="mr-3 text-red-600" size={32} />
-                    System Administration
+                    <ShieldAlert className="mr-3 text-indigo-600" size={32} />
+                    Platform Administration
                 </h1>
                 <button 
                     onClick={() => setShowModal(true)}
-                    className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition-colors"
+                    className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded-lg transition-colors shadow-sm"
                 >
                     <UserPlus size={20} className="mr-2" />
                     Add New User
@@ -117,6 +126,38 @@ const AdminDashboard = () => {
                     {error}
                 </div>
             )}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+                    <div className="bg-blue-100 p-4 rounded-full mr-4">
+                        <Users className="text-blue-600" size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Total Users</p>
+                        <p className="text-3xl font-bold text-gray-900">{users.length}</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+                    <div className={`p-4 rounded-full mr-4 ${pendingDoctorsCount > 0 ? 'bg-yellow-100' : 'bg-green-100'}`}>
+                        <Activity className={`${pendingDoctorsCount > 0 ? 'text-yellow-600' : 'text-green-600'}`} size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Pending Doctors</p>
+                        <p className="text-3xl font-bold text-gray-900">{pendingDoctorsCount}</p>
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
+                    <div className="bg-purple-100 p-4 rounded-full mr-4">
+                        <FileText className="text-purple-600" size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-gray-500 uppercase tracking-wider">Medical Profiles</p>
+                        <p className="text-3xl font-bold text-gray-900">{patientRecords.length} <span className="text-sm font-normal text-gray-400">/ {totalPatientsCount}</span></p>
+                    </div>
+                </div>
+            </div>
 
             <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
                 <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center">
@@ -140,7 +181,7 @@ const AdminDashboard = () => {
                                 <tr>
                                     <td colSpan="5" className="p-8 text-center text-gray-500">
                                         <Loader2 className="animate-spin mx-auto mb-2" size={24} />
-                                        Loading system users...
+                                        Loading system data...
                                     </td>
                                 </tr>
                             ) : users.length === 0 ? (

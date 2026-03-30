@@ -81,3 +81,15 @@ export const downloadReportSecurely = async (token, fileName, originalName) => {
     link.remove();
     window.URL.revokeObjectURL(downloadUrl);
 };
+
+export const getAllPatients = async (token) => {
+    const response = await fetch('http://localhost:8082/api/patients/all', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch patient records');
+    return response.json();
+};
