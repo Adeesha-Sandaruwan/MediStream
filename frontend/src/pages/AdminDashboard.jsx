@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAllUsers, createUser, updateUserRole, deleteUser } from '../api/adminApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X } from 'lucide-react';
+import { getAllUsers, createUser, updateUserRole, deleteUser, updateUserStatus } from '../api/adminApi';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -67,6 +67,17 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleStatusChange = async (id, newStatus) => {
+        setError('');
+        try {
+            await updateUserStatus(token, id, newStatus);
+            fetchUsers();
+        } catch (err) {
+            console.error(err);
+            setError('Failed to update user status.');
+        }
+    };
+
     const handleDeleteUser = async (id) => {
         if (!window.confirm("Are you absolutely sure you want to delete this user? This cannot be undone.")) return;
         setError('');
@@ -77,6 +88,12 @@ const AdminDashboard = () => {
             console.error(err);
             setError('Failed to delete user.');
         }
+    };
+
+    const getStatusIcon = (status) => {
+        if (status === 'APPROVED') return <CheckCircle size={16} className="mr-1 text-green-600" />;
+        if (status === 'PENDING') return <Clock size={16} className="mr-1 text-yellow-600" />;
+        return <AlertOctagon size={16} className="mr-1 text-red-600" />;
     };
 
     return (
@@ -108,26 +125,27 @@ const AdminDashboard = () => {
                 </div>
                 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse min-w-max">
                         <thead>
                             <tr className="bg-gray-50 text-gray-600 text-sm uppercase tracking-wider border-b border-gray-200">
                                 <th className="p-4 font-semibold">ID</th>
                                 <th className="p-4 font-semibold">Email</th>
                                 <th className="p-4 font-semibold">Role</th>
+                                <th className="p-4 font-semibold">Status</th>
                                 <th className="p-4 font-semibold text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan="4" className="p-8 text-center text-gray-500">
+                                    <td colSpan="5" className="p-8 text-center text-gray-500">
                                         <Loader2 className="animate-spin mx-auto mb-2" size={24} />
                                         Loading system users...
                                     </td>
                                 </tr>
                             ) : users.length === 0 ? (
                                 <tr>
-                                    <td colSpan="4" className="p-8 text-center text-gray-500 italic">
+                                    <td colSpan="5" className="p-8 text-center text-gray-500 italic">
                                         No users found in the system.
                                     </td>
                                 </tr>
@@ -141,15 +159,34 @@ const AdminDashboard = () => {
                                                 value={user.role} 
                                                 onChange={(e) => handleRoleChange(user.id, e.target.value)}
                                                 className={`px-3 py-1 rounded-full text-xs font-bold tracking-wide cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 ${
-                                                    user.role === 'ADMIN' ? 'bg-red-100 text-red-700 focus:ring-red-500' : 
-                                                    user.role === 'DOCTOR' ? 'bg-green-100 text-green-700 focus:ring-green-500' : 
-                                                    'bg-blue-100 text-blue-700 focus:ring-blue-500'
+                                                    user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700 focus:ring-purple-500' : 
+                                                    user.role === 'DOCTOR' ? 'bg-blue-100 text-blue-700 focus:ring-blue-500' : 
+                                                    'bg-gray-100 text-gray-700 focus:ring-gray-500'
                                                 }`}
                                             >
                                                 <option value="PATIENT" className="text-gray-900 bg-white">PATIENT</option>
                                                 <option value="DOCTOR" className="text-gray-900 bg-white">DOCTOR</option>
                                                 <option value="ADMIN" className="text-gray-900 bg-white">ADMIN</option>
                                             </select>
+                                        </td>
+                                        <td className="p-4">
+                                            <div className="flex items-center">
+                                                {getStatusIcon(user.verificationStatus || 'PENDING')}
+                                                <select 
+                                                    value={user.verificationStatus || 'PENDING'} 
+                                                    onChange={(e) => handleStatusChange(user.id, e.target.value)}
+                                                    className={`px-2 py-1 rounded-md text-xs font-bold cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-1 bg-transparent ${
+                                                        (user.verificationStatus || 'PENDING') === 'APPROVED' ? 'text-green-700 focus:ring-green-500' : 
+                                                        (user.verificationStatus || 'PENDING') === 'PENDING' ? 'text-yellow-700 focus:ring-yellow-500' : 
+                                                        'text-red-700 focus:ring-red-500'
+                                                    }`}
+                                                >
+                                                    <option value="PENDING" className="text-gray-900 bg-white">PENDING</option>
+                                                    <option value="APPROVED" className="text-gray-900 bg-white">APPROVED</option>
+                                                    <option value="REJECTED" className="text-gray-900 bg-white">REJECTED</option>
+                                                    <option value="SUSPENDED" className="text-gray-900 bg-white">SUSPENDED</option>
+                                                </select>
+                                            </div>
                                         </td>
                                         <td className="p-4 text-right">
                                             <button 
