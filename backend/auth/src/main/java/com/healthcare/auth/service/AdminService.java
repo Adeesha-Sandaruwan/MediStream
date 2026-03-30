@@ -49,4 +49,12 @@ public class AdminService {
         }
         userRepository.deleteById(id);
     }
+
+    // UPDATE: Change user verification status (Added this method for admin to manage user statuses)
+    public User updateUserStatus(Long id, String newStatus) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        user.setVerificationStatus(newStatus.toUpperCase());
+        return userRepository.save(user);
+    }
 }
