@@ -44,10 +44,13 @@ public class AuthService {
             throw new IllegalArgumentException("Email already in use");
         }
 
+        String initialStatus = (userRole == Role.DOCTOR) ? "PENDING" : "APPROVED";
+
         User user = User.builder()
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .role(userRole)
+                .verificationStatus(initialStatus)
                 .build();
 
         userRepository.save(user);
@@ -56,6 +59,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .token(jwtToken)
                 .role(user.getRole().name())
+                .verificationStatus(user.getVerificationStatus())
                 .build();
     }
 
@@ -75,6 +79,7 @@ public class AuthService {
         return AuthResponse.builder()
                 .token(jwtToken)
                 .role(user.getRole().name())
+                .verificationStatus(user.getVerificationStatus())
                 .build();
     }
 
@@ -95,6 +100,7 @@ public class AuthService {
                             .email(email)
                             .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                             .role(Role.PATIENT)
+                            .verificationStatus("APPROVED")
                             .build();
                     return userRepository.save(newUser);
                 });
@@ -104,6 +110,7 @@ public class AuthService {
                 return AuthResponse.builder()
                         .token(jwtToken)
                         .role(user.getRole().name())
+                        .verificationStatus(user.getVerificationStatus())
                         .build();
             } else {
                 throw new IllegalArgumentException("Invalid Google token");

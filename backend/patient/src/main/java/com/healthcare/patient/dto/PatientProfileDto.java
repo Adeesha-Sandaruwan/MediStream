@@ -16,8 +16,14 @@ public class PatientProfileDto {
     private String dateOfBirth;
     private String gender;
     private String address;
+    private String nationalId;
     private String bloodGroup;
-    private String emergencyContact;
     private String allergies;
     private String currentMedications;
+    private String chronicConditions;
+    private String pastSurgeries;
+    private String familyMedicalHistory;
+    private String emergencyContactName;
+    private String emergencyContactRelationship;
+    private String emergencyContactPhone;
 }

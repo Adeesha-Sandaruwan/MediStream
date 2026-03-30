@@ -1,5 +1,4 @@
-// Connects to your Auth Service on Port 8081
-const API_URL = 'http://localhost:8081/api/admin/users'; 
+const API_URL = 'http://localhost:8081/api/admin/users';
 
 export const getAllUsers = async (token) => {
     const response = await fetch(API_URL, {
@@ -36,6 +35,19 @@ export const updateUserRole = async (token, id, role) => {
         body: JSON.stringify({ role })
     });
     if (!response.ok) throw new Error('Failed to update user role');
+    return response.json();
+};
+
+export const updateUserStatus = async (token, id, status) => {
+    const response = await fetch(`${API_URL}/${id}/status`, {
+        method: 'PUT',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
+    });
+    if (!response.ok) throw new Error('Failed to update user status');
     return response.json();
 };
 

@@ -45,4 +45,10 @@ public class AdminController {
         adminService.deleteUser(id);
         return ResponseEntity.ok("User deleted successfully");
     }
+
+    // PUT /api/admin/users/{id}/status (Added this endpoint for admin to manage user statuses)
+    @PutMapping("/{id}/status")
+    public ResponseEntity<User> updateUserStatus(@PathVariable Long id, @RequestBody Map<String, String> request) {
+        return ResponseEntity.ok(adminService.updateUserStatus(id, request.get("status")));
+    }
 }

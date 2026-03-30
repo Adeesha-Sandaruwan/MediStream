@@ -23,26 +23,35 @@ public class PatientProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // The unique link back to the Auth Service
     @Column(unique = true, nullable = false)
     private String email;
 
-    // Basic Demographics
     private String firstName;
     private String lastName;
     private String phoneNumber;
     private String dateOfBirth;
     private String gender;
     private String address;
-    
-    // Medical Overview
+    private String nationalId;
+
     private String bloodGroup;
-    private String emergencyContact;
     
-    // Using TEXT definition for longer medical descriptions
     @Column(columnDefinition = "TEXT")
     private String allergies;
     
     @Column(columnDefinition = "TEXT")
     private String currentMedications;
+
+    @Column(columnDefinition = "TEXT")
+    private String chronicConditions;
+
+    @Column(columnDefinition = "TEXT")
+    private String pastSurgeries;
+
+    @Column(columnDefinition = "TEXT")
+    private String familyMedicalHistory;
+
+    private String emergencyContactName;
+    private String emergencyContactRelationship;
+    private String emergencyContactPhone;
 }
