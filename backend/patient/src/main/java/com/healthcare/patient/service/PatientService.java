@@ -29,10 +29,16 @@ public class PatientService {
         profile.setDateOfBirth(dto.getDateOfBirth());
         profile.setGender(dto.getGender());
         profile.setAddress(dto.getAddress());
+        profile.setNationalId(dto.getNationalId());
         profile.setBloodGroup(dto.getBloodGroup());
-        profile.setEmergencyContact(dto.getEmergencyContact());
         profile.setAllergies(dto.getAllergies());
         profile.setCurrentMedications(dto.getCurrentMedications());
+        profile.setChronicConditions(dto.getChronicConditions());
+        profile.setPastSurgeries(dto.getPastSurgeries());
+        profile.setFamilyMedicalHistory(dto.getFamilyMedicalHistory());
+        profile.setEmergencyContactName(dto.getEmergencyContactName());
+        profile.setEmergencyContactRelationship(dto.getEmergencyContactRelationship());
+        profile.setEmergencyContactPhone(dto.getEmergencyContactPhone());
 
         return patientRepository.save(profile);
     }
