@@ -9,7 +9,7 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
     patientId: '',
     doctorId: '',
     appointmentDate: '',
-    durationMinutes: '30',
+    durationMinutes: '',
     reason: '',
     notes: ''
   });
