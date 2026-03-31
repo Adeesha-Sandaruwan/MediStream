@@ -6,6 +6,7 @@ import Telemedicine from './pages/Telemedicine';
 import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
+import Appointments from './components/appointments';
 
 const DoctorDashboard = () => (
     <div className="max-w-7xl mx-auto px-4 py-10">
@@ -74,6 +75,8 @@ export default function App() {
             
             <Routes>
                 <Route path="/auth" element={<Auth />} />
+
+                 <Route path="/appointments" element={<Appointments />}/>
                 
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
