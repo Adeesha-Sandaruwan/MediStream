@@ -6,23 +6,11 @@ import Telemedicine from './pages/Telemedicine';
 import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
-
-const DoctorDashboard = () => (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-gray-800">Doctor Dashboard (Under Construction)</h1>
-        <p className="mt-3 text-gray-600">
-            Use Telemedicine to start or join patient video consultations.
-        </p>
-        <div className="mt-6">
-            <Link
-                to="/telemedicine"
-                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors"
-            >
-                Open Telemedicine
-            </Link>
-        </div>
-    </div>
-);
+import DoctorDashboard from './pages/DoctorDashboard';
+import DoctorProfile from './pages/DoctorProfile';
+import DoctorAvailability from './pages/DoctorAvailability';
+import DoctorAppointments from './pages/DoctorAppointments';
+import DoctorPrescriptions from './pages/DoctorPrescriptions';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { token, role } = useAuth();
@@ -117,6 +105,26 @@ export default function App() {
                 <Route 
                     path="/doctor-dashboard" 
                     element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
+                />
+
+                <Route
+                    path="/doctor-profile"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-availability"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAvailability /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-appointments"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAppointments /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-prescriptions"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorPrescriptions /></ProtectedRoute>}
                 />
 
                 <Route
