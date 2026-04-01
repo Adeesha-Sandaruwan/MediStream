@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, updateUserRole, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
     const [users, setUsers] = useState([]);
     const [patientRecords, setPatientRecords] = useState([]);
+    const [doctorRecords, setDoctorRecords] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     
     const [showModal, setShowModal] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [selectedAudit, setSelectedAudit] = useState(null);
+    const [selectedAudit, setSelectedAudit] = useState(null); // Now holds { type: 'PATIENT'|'DOCTOR', data: {} }
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -28,15 +29,26 @@ const AdminDashboard = () => {
         setIsLoading(true);
         setError('');
         try {
-            const [usersData, patientsData] = await Promise.all([
+            // Hardcoded fetch to port 8084 inside the component so you don't touch other files
+            const fetchDoctors = fetch('http://localhost:8084/api/doctors/all', {
+                headers: { 
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }).then(res => res.ok ? res.json() : []).catch(() => []);
+
+            const [usersData, patientsData, doctorsData] = await Promise.all([
                 getAllUsers(token),
-                getAllPatients(token).catch(() => []) 
+                getAllPatients(token).catch(() => []),
+                fetchDoctors
             ]);
+
             setUsers(usersData);
             setPatientRecords(patientsData);
+            setDoctorRecords(doctorsData);
         } catch (err) {
             console.error(err);
-            setError('System Sync Error: Check if both Auth (8081) and Patient (8082) services are online.');
+            setError('System Sync Error: Check if Auth, Patient, and Doctor services are online.');
         } finally {
             setIsLoading(false);
         }
@@ -91,12 +103,23 @@ const AdminDashboard = () => {
         }
     };
 
-    const handleAuditUser = (email) => {
-        const profile = patientRecords.find(p => p.email === email);
-        if (profile) {
-            setSelectedAudit(profile);
+    const handleAuditUser = (email, role) => {
+        if (role === 'DOCTOR') {
+            const profile = doctorRecords.find(p => p.email === email);
+            if (profile) {
+                setSelectedAudit({ type: 'DOCTOR', data: profile });
+            } else {
+                alert("No professional profile found for this doctor yet.");
+            }
+        } else if (role === 'PATIENT') {
+            const profile = patientRecords.find(p => p.email === email);
+            if (profile) {
+                setSelectedAudit({ type: 'PATIENT', data: profile });
+            } else {
+                alert("No medical profile found for this patient yet.");
+            }
         } else {
-            alert("No medical profile found for this user yet.");
+            alert("Admins do not have clinical profiles to audit.");
         }
     };
 
@@ -141,7 +164,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
                     <div className="bg-purple-100 p-4 rounded-full mr-4"><FileText className="text-purple-600" size={24} /></div>
-                    <div><p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Medical Records</p><p className="text-3xl font-bold">{patientRecords.length}</p></div>
+                    <div><p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Active Records</p><p className="text-3xl font-bold">{patientRecords.length + doctorRecords.length}</p></div>
                 </div>
             </div>
 
@@ -176,7 +199,7 @@ const AdminDashboard = () => {
                                         </div>
                                     </td>
                                     <td className="p-4 text-right space-x-2">
-                                        <button onClick={() => handleAuditUser(user.email)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"><Eye size={18} /></button>
+                                        <button onClick={() => handleAuditUser(user.email, user.role)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"><Eye size={18} /></button>
                                         <button onClick={() => handleDeleteUser(user.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={18} /></button>
                                     </td>
                                 </tr>
@@ -186,8 +209,9 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* Create Account Modal */}
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="text-xl font-bold text-gray-800">Create New Account</h3>
@@ -219,96 +243,138 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            {/* Comprehensive Audit Modal */}
             {selectedAudit && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                         <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center shrink-0">
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Comprehensive Clinical Audit Log</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">
+                                {selectedAudit.type === 'DOCTOR' ? 'Doctor Credential Audit Log' : 'Comprehensive Clinical Audit Log'}
+                            </h3>
                             <button onClick={() => setSelectedAudit(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                         </div>
                         
                         <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Full Legal Name</p>
-                                    <p className="font-bold text-gray-900">{selectedAudit.firstName || '-'} {selectedAudit.lastName || '-'}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">ID Reference</p>
-                                    <p className="font-bold text-gray-900">{selectedAudit.nationalId || 'Not Provided'}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Date of Birth</p>
-                                    <p className="font-bold text-gray-900">{selectedAudit.dateOfBirth || 'Not Provided'}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Gender</p>
-                                    <p className="font-bold text-gray-900">{selectedAudit.gender || 'Not Provided'}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Phone Number</p>
-                                    <p className="font-bold text-gray-900">{selectedAudit.phoneNumber || 'Not Provided'}</p>
-                                </div>
-                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
-                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Blood Group</p>
-                                    <p className="font-bold text-red-600">{selectedAudit.bloodGroup || 'Not Provided'}</p>
-                                </div>
-                            </div>
+                            
+                            {/* --- PATIENT AUDIT VIEW --- */}
+                            {selectedAudit.type === 'PATIENT' && (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Full Legal Name</p>
+                                            <p className="font-bold text-gray-900">{selectedAudit.data.firstName || '-'} {selectedAudit.data.lastName || '-'}</p>
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">ID Reference</p>
+                                            <p className="font-bold text-gray-900">{selectedAudit.data.nationalId || 'Not Provided'}</p>
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Date of Birth</p>
+                                            <p className="font-bold text-gray-900">{selectedAudit.data.dateOfBirth || 'Not Provided'}</p>
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-start bg-gray-50 p-4 rounded-xl border border-gray-100">
-                                <MapPin className="mr-3 text-indigo-500 mt-1" size={20} />
-                                <div className="flex-1">
-                                    <p className="font-bold text-gray-800 uppercase text-xs mb-1">Full Residence Address</p>
-                                    <p className="text-sm text-gray-700">{selectedAudit.address || 'No address provided.'}</p>
-                                </div>
-                            </div>
+                                    <div className="flex items-start bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <MapPin className="mr-3 text-indigo-500 mt-1" size={20} />
+                                        <div className="flex-1">
+                                            <p className="font-bold text-gray-800 uppercase text-xs mb-1">Full Residence Address</p>
+                                            <p className="text-sm text-gray-700">{selectedAudit.data.address || 'No address provided.'}</p>
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-start bg-red-50 p-5 rounded-xl border border-red-100">
-                                <Activity className="mr-4 text-red-500 mt-1" size={24} />
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2">
-                                        <p className="font-bold text-red-900 uppercase text-xs border-b border-red-200 pb-2 mb-2">Primary Medical Profile</p>
+                                    <div className="flex items-start bg-red-50 p-5 rounded-xl border border-red-100">
+                                        <Activity className="mr-4 text-red-500 mt-1" size={24} />
+                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2">
+                                                <p className="font-bold text-red-900 uppercase text-xs border-b border-red-200 pb-2 mb-2">Primary Medical Profile</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-red-700 mb-1">CHRONIC CONDITIONS</p>
+                                                <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.data.chronicConditions || 'None reported'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-red-700 mb-1">KNOWN ALLERGIES</p>
+                                                <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.data.allergies || 'None reported'}</p>
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <p className="text-xs font-bold text-red-700 mb-1">CURRENT MEDICATIONS</p>
+                                                <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.data.currentMedications || 'None reported'}</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-red-700 mb-1">CHRONIC CONDITIONS</p>
-                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.chronicConditions || 'None reported'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-red-700 mb-1">KNOWN ALLERGIES</p>
-                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.allergies || 'None reported'}</p>
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <p className="text-xs font-bold text-red-700 mb-1">CURRENT MEDICATIONS</p>
-                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.currentMedications || 'None reported'}</p>
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div className="flex items-start bg-purple-50 p-5 rounded-xl border border-purple-100">
-                                <FileText className="mr-4 text-purple-500 mt-1" size={24} />
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="md:col-span-2">
-                                        <p className="font-bold text-purple-900 uppercase text-xs border-b border-purple-200 pb-2 mb-2">Historical Records</p>
+                                    <div className="flex items-start bg-green-50 p-5 rounded-xl border border-green-100">
+                                        <Phone className="mr-4 text-green-500 mt-1" size={24} />
+                                        <div className="flex-1">
+                                            <p className="font-bold text-green-900 uppercase text-xs border-b border-green-200 pb-2 mb-2">Emergency Contact</p>
+                                            <p className="text-sm text-green-900 font-bold">{selectedAudit.data.emergencyContactName || '-'} <span className="font-normal text-green-700">({selectedAudit.data.emergencyContactRelationship || '-'})</span></p>
+                                            <p className="text-sm text-green-800 font-medium mt-1">{selectedAudit.data.emergencyContactPhone || 'No phone provided'}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-purple-700 mb-1">PAST SURGERIES</p>
-                                        <p className="text-sm text-purple-900 bg-white p-2 rounded border border-purple-100">{selectedAudit.pastSurgeries || 'None reported'}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-purple-700 mb-1">FAMILY MEDICAL HISTORY</p>
-                                        <p className="text-sm text-purple-900 bg-white p-2 rounded border border-purple-100">{selectedAudit.familyMedicalHistory || 'None reported'}</p>
-                                    </div>
-                                </div>
-                            </div>
+                                </>
+                            )}
 
-                            <div className="flex items-start bg-green-50 p-5 rounded-xl border border-green-100">
-                                <Phone className="mr-4 text-green-500 mt-1" size={24} />
-                                <div className="flex-1">
-                                    <p className="font-bold text-green-900 uppercase text-xs border-b border-green-200 pb-2 mb-2">Emergency Contact</p>
-                                    <p className="text-sm text-green-900 font-bold">{selectedAudit.emergencyContactName || '-'} <span className="font-normal text-green-700">({selectedAudit.emergencyContactRelationship || '-'})</span></p>
-                                    <p className="text-sm text-green-800 font-medium mt-1">{selectedAudit.emergencyContactPhone || 'No phone provided'}</p>
-                                </div>
-                            </div>
+                            {/* --- DOCTOR AUDIT VIEW --- */}
+                            {selectedAudit.type === 'DOCTOR' && (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Full Name</p>
+                                            <p className="font-bold text-gray-900 text-lg">Dr. {selectedAudit.data.firstName || '-'} {selectedAudit.data.lastName || '-'}</p>
+                                        </div>
+                                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                            <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Phone Number</p>
+                                            <p className="font-bold text-gray-900 text-lg">{selectedAudit.data.phoneNumber || 'Not Provided'}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start bg-blue-50 p-5 rounded-xl border border-blue-100">
+                                        <Award className="mr-4 text-blue-500 mt-1" size={24} />
+                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2">
+                                                <p className="font-bold text-blue-900 uppercase text-xs border-b border-blue-200 pb-2 mb-2">Professional Credentials</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-blue-700 mb-1">SPECIALTY</p>
+                                                <p className="text-sm text-blue-900 bg-white p-2 rounded border border-blue-100">{selectedAudit.data.specialty || 'Not specified'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-blue-700 mb-1">LICENSE NUMBER</p>
+                                                <p className="text-sm font-mono text-blue-900 bg-white p-2 rounded border border-blue-100">{selectedAudit.data.licenseNumber || 'Pending verification'}</p>
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <p className="text-xs font-bold text-blue-700 mb-1">QUALIFICATIONS</p>
+                                                <p className="text-sm text-blue-900 bg-white p-2 rounded border border-blue-100">{selectedAudit.data.qualifications || 'Not specified'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                                        <Building className="mr-4 text-indigo-500 mt-1" size={24} />
+                                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2">
+                                                <p className="font-bold text-indigo-900 uppercase text-xs border-b border-indigo-200 pb-2 mb-2">Practice & Affiliations</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-indigo-700 mb-1">HOSPITAL AFFILIATION</p>
+                                                <p className="text-sm text-indigo-900 bg-white p-2 rounded border border-indigo-100">{selectedAudit.data.hospitalAffiliation || 'Independent Practice'}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-indigo-700 mb-1">YEARS OF EXPERIENCE</p>
+                                                <p className="text-sm text-indigo-900 bg-white p-2 rounded border border-indigo-100">{selectedAudit.data.experienceYears ? `${selectedAudit.data.experienceYears} Years` : 'Not specified'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                        <FileText className="mr-3 text-gray-500 mt-1" size={20} />
+                                        <div className="flex-1">
+                                            <p className="font-bold text-gray-800 uppercase text-xs mb-1">Professional Bio</p>
+                                            <p className="text-sm text-gray-700 leading-relaxed bg-white p-3 rounded border border-gray-200">{selectedAudit.data.bio || 'No biography provided by the doctor.'}</p>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                         </div>
                         
                         <div className="p-6 bg-gray-50 border-t flex justify-end shrink-0">
