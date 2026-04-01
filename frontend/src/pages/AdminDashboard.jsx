@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, updateUserRole, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, User as UserIcon } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -187,7 +187,7 @@ const AdminDashboard = () => {
             </div>
 
             {showModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
                         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                             <h3 className="text-xl font-bold text-gray-800">Create New Account</h3>
@@ -220,44 +220,101 @@ const AdminDashboard = () => {
             )}
 
             {selectedAudit && (
-                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Clinical Audit Log</h3>
+                <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+                        <div className="px-6 py-4 bg-gray-50 border-b flex justify-between items-center shrink-0">
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Comprehensive Clinical Audit Log</h3>
                             <button onClick={() => setSelectedAudit(null)} className="text-gray-400 hover:text-gray-600"><X size={24} /></button>
                         </div>
-                        <div className="p-8 max-h-[70vh] overflow-y-auto space-y-6">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="p-4 bg-gray-50 rounded-lg">
+                        
+                        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                     <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Full Legal Name</p>
-                                    <p className="font-bold text-gray-900 text-lg">{selectedAudit.firstName} {selectedAudit.lastName}</p>
+                                    <p className="font-bold text-gray-900">{selectedAudit.firstName || '-'} {selectedAudit.lastName || '-'}</p>
                                 </div>
-                                <div className="p-4 bg-gray-50 rounded-lg">
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
                                     <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">ID Reference</p>
-                                    <p className="font-bold text-gray-900 text-lg">{selectedAudit.nationalId || 'Not Provided'}</p>
+                                    <p className="font-bold text-gray-900">{selectedAudit.nationalId || 'Not Provided'}</p>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Date of Birth</p>
+                                    <p className="font-bold text-gray-900">{selectedAudit.dateOfBirth || 'Not Provided'}</p>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Gender</p>
+                                    <p className="font-bold text-gray-900">{selectedAudit.gender || 'Not Provided'}</p>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Phone Number</p>
+                                    <p className="font-bold text-gray-900">{selectedAudit.phoneNumber || 'Not Provided'}</p>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                    <p className="text-xs font-bold text-gray-400 mb-1 uppercase tracking-widest">Blood Group</p>
+                                    <p className="font-bold text-red-600">{selectedAudit.bloodGroup || 'Not Provided'}</p>
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                <div className="flex items-start bg-red-50 p-4 rounded-xl border border-red-100">
-                                    <Activity className="mr-3 text-red-500" size={24} />
-                                    <div className="flex-1">
-                                        <p className="font-bold text-red-900 uppercase text-xs">Medical Profile</p>
-                                        <p className="text-sm text-red-800 font-medium">Chronic: {selectedAudit.chronicConditions || 'None'}</p>
-                                        <p className="text-sm text-red-800 font-medium">Allergies: {selectedAudit.allergies || 'None'}</p>
+
+                            <div className="flex items-start bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <MapPin className="mr-3 text-indigo-500 mt-1" size={20} />
+                                <div className="flex-1">
+                                    <p className="font-bold text-gray-800 uppercase text-xs mb-1">Full Residence Address</p>
+                                    <p className="text-sm text-gray-700">{selectedAudit.address || 'No address provided.'}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-start bg-red-50 p-5 rounded-xl border border-red-100">
+                                <Activity className="mr-4 text-red-500 mt-1" size={24} />
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <p className="font-bold text-red-900 uppercase text-xs border-b border-red-200 pb-2 mb-2">Primary Medical Profile</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-red-700 mb-1">CHRONIC CONDITIONS</p>
+                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.chronicConditions || 'None reported'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-red-700 mb-1">KNOWN ALLERGIES</p>
+                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.allergies || 'None reported'}</p>
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <p className="text-xs font-bold text-red-700 mb-1">CURRENT MEDICATIONS</p>
+                                        <p className="text-sm text-red-900 bg-white p-2 rounded border border-red-100">{selectedAudit.currentMedications || 'None reported'}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-start bg-green-50 p-4 rounded-xl border border-green-100">
-                                    <Phone className="mr-3 text-green-500" size={24} />
-                                    <div className="flex-1">
-                                        <p className="font-bold text-green-900 uppercase text-xs">Emergency Contact</p>
-                                        <p className="text-sm text-green-800 font-medium">{selectedAudit.emergencyContactName} ({selectedAudit.emergencyContactRelationship})</p>
-                                        <p className="text-sm text-green-800 font-medium">{selectedAudit.emergencyContactPhone}</p>
+                            </div>
+
+                            <div className="flex items-start bg-purple-50 p-5 rounded-xl border border-purple-100">
+                                <FileText className="mr-4 text-purple-500 mt-1" size={24} />
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <p className="font-bold text-purple-900 uppercase text-xs border-b border-purple-200 pb-2 mb-2">Historical Records</p>
                                     </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-purple-700 mb-1">PAST SURGERIES</p>
+                                        <p className="text-sm text-purple-900 bg-white p-2 rounded border border-purple-100">{selectedAudit.pastSurgeries || 'None reported'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-purple-700 mb-1">FAMILY MEDICAL HISTORY</p>
+                                        <p className="text-sm text-purple-900 bg-white p-2 rounded border border-purple-100">{selectedAudit.familyMedicalHistory || 'None reported'}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-start bg-green-50 p-5 rounded-xl border border-green-100">
+                                <Phone className="mr-4 text-green-500 mt-1" size={24} />
+                                <div className="flex-1">
+                                    <p className="font-bold text-green-900 uppercase text-xs border-b border-green-200 pb-2 mb-2">Emergency Contact</p>
+                                    <p className="text-sm text-green-900 font-bold">{selectedAudit.emergencyContactName || '-'} <span className="font-normal text-green-700">({selectedAudit.emergencyContactRelationship || '-'})</span></p>
+                                    <p className="text-sm text-green-800 font-medium mt-1">{selectedAudit.emergencyContactPhone || 'No phone provided'}</p>
                                 </div>
                             </div>
                         </div>
-                        <div className="p-6 bg-gray-50 border-t flex justify-end">
-                            <button onClick={() => setSelectedAudit(null)} className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-700 transition-colors shadow-lg uppercase tracking-widest">Close Audit</button>
+                        
+                        <div className="p-6 bg-gray-50 border-t flex justify-end shrink-0">
+                            <button onClick={() => setSelectedAudit(null)} className="px-8 py-3 bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-700 transition-colors shadow-sm uppercase tracking-widest">
+                                Close Audit
+                            </button>
                         </div>
                     </div>
                 </div>
