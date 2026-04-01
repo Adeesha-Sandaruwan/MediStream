@@ -7,6 +7,10 @@ import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
 import DoctorDashboard from './pages/DoctorDashboard';
+import DoctorProfile from './pages/DoctorProfile';
+import DoctorAvailability from './pages/DoctorAvailability';
+import DoctorAppointments from './pages/DoctorAppointments';
+import DoctorPrescriptions from './pages/DoctorPrescriptions';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { token, role } = useAuth();
@@ -101,6 +105,26 @@ export default function App() {
                 <Route 
                     path="/doctor-dashboard" 
                     element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
+                />
+
+                <Route
+                    path="/doctor-profile"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-availability"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAvailability /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-appointments"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAppointments /></ProtectedRoute>}
+                />
+
+                <Route
+                    path="/doctor-prescriptions"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorPrescriptions /></ProtectedRoute>}
                 />
 
                 <Route
