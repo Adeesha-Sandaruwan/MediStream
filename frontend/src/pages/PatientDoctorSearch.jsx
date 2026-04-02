@@ -17,7 +17,6 @@ const PatientDoctorSearch = () => {
         fetchDoctors();
     }, [token]);
 
-    // Handle search and filtering locally
     useEffect(() => {
         let results = doctors;
 
@@ -52,7 +51,6 @@ const PatientDoctorSearch = () => {
         }
     };
 
-    // Extract unique specialties for the filter dropdown
     const uniqueSpecialties = ['ALL', ...new Set(doctors.map(d => d.specialty).filter(Boolean))];
 
     return (
@@ -75,7 +73,6 @@ const PatientDoctorSearch = () => {
                 </div>
             )}
 
-            {/* Search and Filter Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-8 flex flex-col md:flex-row gap-4">
                 <div className="relative flex-1">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -104,7 +101,6 @@ const PatientDoctorSearch = () => {
                 </div>
             </div>
 
-            {/* Results Grid */}
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-indigo-600">
                     <Loader2 className="animate-spin mb-4" size={48} />
@@ -161,9 +157,8 @@ const PatientDoctorSearch = () => {
                             
                             <div className="bg-gray-50 p-4 border-t border-gray-100 mt-auto flex justify-between items-center">
                                 <div className="text-lg font-black text-emerald-700">
-                                    ${doctor.consultationFee || '0.00'} <span className="text-xs text-gray-500 font-medium">/ session</span>
+                                    LKR {doctor.consultationFee || '0.00'} <span className="text-xs text-gray-500 font-medium">/ session</span>
                                 </div>
-                                {/* Note: Appointment Service is pending, so button is disabled for now */}
                                 <button disabled className="flex items-center px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                                     <Calendar className="mr-2" size={16} /> Book Appointment
                                 </button>
