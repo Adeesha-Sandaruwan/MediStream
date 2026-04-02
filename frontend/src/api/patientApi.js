@@ -115,3 +115,22 @@ export const getMyPrescriptionsAsPatient = async (token) => {
     if (!response.ok) throw new Error('Failed to fetch digital prescriptions');
     return response.json();
 };
+
+// --- BROWSE DOCTORS (PORT 8084) ---
+export const getAllVerifiedDoctors = async (token) => {
+    const response = await fetch('http://localhost:8084/api/doctors/all', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch doctor directory');
+    
+    const allDoctors = await response.json();
+    
+    // Removed the strict doctor.verified filter because verification 
+    // is handled by the Auth Service, not the Doctor Profile Service!
+    return allDoctors;
+};
