@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User, FileText, Calendar, Video, Pill } from 'lucide-react';
+import { User, FileText, Calendar, Video, Pill, UserRound } from 'lucide-react';
 
 const PatientDashboard = () => {
     return (
@@ -24,6 +24,22 @@ const PatientDashboard = () => {
                     >
                         Manage Profile
                     </Link>
+                </div>
+
+                {/* Feature 4: Find a Doctor */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
+                    <div className="flex items-center mb-4">
+                        <div className="p-3 bg-teal-100 text-teal-600 rounded-lg">
+                    <UserRound size={24} />
+                </div>
+                 <h2 className="ml-4 text-xl font-semibold text-gray-800">Find a Specialist</h2>
+             </div>
+                <p className="text-gray-600 mb-6 h-12">Browse verified medical professionals and specialists near you.</p>
+                <Link 
+                     to="/patient-doctors" 
+                         className="block w-full text-center bg-teal-600 hover:bg-teal-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm" >
+                 Browse Directory
+                </Link>
                 </div>
 
               {/* Feature 2: Medical Reports */}

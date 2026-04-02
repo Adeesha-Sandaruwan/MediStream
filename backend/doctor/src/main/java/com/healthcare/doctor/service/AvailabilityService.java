@@ -29,6 +29,10 @@ public class AvailabilityService {
         return availabilitySlotRepository.findByDoctorEmailOrderByDayOfWeekAscStartTimeAsc(doctorEmail);
     }
 
+    public List<AvailabilitySlot> getByDoctorEmail(String doctorEmail) {
+        return availabilitySlotRepository.findByDoctorEmailOrderByDayOfWeekAscStartTimeAsc(doctorEmail);
+    }
+
     public AvailabilitySlot update(String doctorEmail, Long slotId, AvailabilitySlotDto dto) {
         AvailabilitySlot slot = availabilitySlotRepository.findById(slotId)
                 .orElseThrow(() -> new RuntimeException("Availability slot not found"));
