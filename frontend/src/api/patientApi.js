@@ -93,3 +93,25 @@ export const getAllPatients = async (token) => {
     if (!response.ok) throw new Error('Failed to fetch patient records');
     return response.json();
 };
+
+// --- DOCTOR SERVICE INTEGRATION (PORT 8084) ---
+export const getMyPrescriptionsAsPatient = async (token) => {
+    // Decode the patient's email directly from the JWT token's 'sub' (subject) field
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const patientEmail = JSON.parse(jsonPayload).sub;
+
+    // Fetch from the Doctor Service
+    const response = await fetch(`http://localhost:8084/api/doctors/prescriptions/patient?patientEmail=${patientEmail}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch digital prescriptions');
+    return response.json();
+};
