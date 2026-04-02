@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getAllVerifiedDoctors } from '../api/patientApi';
-import { Search, Loader2, UserRound, Award, Phone, Building, AlertCircle, Calendar } from 'lucide-react';
+import { getAllVerifiedDoctors, getDoctorAvailability } from '../api/patientApi';
+import { Search, Loader2, UserRound, Award, Phone, Building, AlertCircle, Calendar, Clock, X } from 'lucide-react';
 
 const PatientDoctorSearch = () => {
     const { token } = useAuth();
@@ -12,6 +12,10 @@ const PatientDoctorSearch = () => {
     const [specialtyFilter, setSpecialtyFilter] = useState('ALL');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+
+    const [selectedDoctor, setSelectedDoctor] = useState(null);
+    const [availabilitySlots, setAvailabilitySlots] = useState([]);
+    const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
 
     useEffect(() => {
         fetchDoctors();
@@ -51,10 +55,25 @@ const PatientDoctorSearch = () => {
         }
     };
 
+    const handleViewAvailability = async (doctor) => {
+        setSelectedDoctor(doctor);
+        setIsAvailabilityLoading(true);
+        try {
+            const slots = await getDoctorAvailability(token, doctor.email);
+            const activeSlots = slots.filter(slot => slot.active);
+            setAvailabilitySlots(activeSlots);
+        } catch (err) {
+            console.error(err);
+            setAvailabilitySlots([]);
+        } finally {
+            setIsAvailabilityLoading(false);
+        }
+    };
+
     const uniqueSpecialties = ['ALL', ...new Set(doctors.map(d => d.specialty).filter(Boolean))];
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
             <div className="mb-6">
                 <Link to="/patient-dashboard" className="text-indigo-600 hover:text-indigo-800 font-medium">
                     &larr; Back to Dashboard
@@ -153,6 +172,13 @@ const PatientDoctorSearch = () => {
                                         <p className="text-sm"><span className="font-bold text-gray-700">Contact:</span> {doctor.phoneNumber || 'Not provided'}</p>
                                     </div>
                                 </div>
+
+                                <button 
+                                    onClick={() => handleViewAvailability(doctor)}
+                                    className="mt-4 flex items-center text-sm font-bold text-indigo-600 hover:text-indigo-800 transition-colors"
+                                >
+                                    <Clock className="mr-2" size={16} /> View Clinic Schedule
+                                </button>
                             </div>
                             
                             <div className="bg-gray-50 p-4 border-t border-gray-100 mt-auto flex justify-between items-center">
@@ -165,6 +191,54 @@ const PatientDoctorSearch = () => {
                             </div>
                         </div>
                     ))}
+                </div>
+            )}
+
+            {selectedDoctor && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">Dr. {selectedDoctor.firstName}'s Schedule</h3>
+                                <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{selectedDoctor.specialty}</p>
+                            </div>
+                            <button onClick={() => setSelectedDoctor(null)} className="text-gray-400 hover:text-gray-600">
+                                <X size={24} />
+                            </button>
+                        </div>
+                        
+                        <div className="p-6 overflow-y-auto">
+                            {isAvailabilityLoading ? (
+                                <div className="flex justify-center items-center py-10 text-indigo-600">
+                                    <Loader2 className="animate-spin" size={32} />
+                                </div>
+                            ) : availabilitySlots.length === 0 ? (
+                                <div className="text-center py-6 text-gray-500">
+                                    <Clock className="mx-auto text-gray-300 mb-3" size={32} />
+                                    <p>No active availability slots posted by this doctor.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {availabilitySlots.map(slot => (
+                                        <div key={slot.id} className="flex justify-between items-center p-3 bg-indigo-50 border border-indigo-100 rounded-lg">
+                                            <div className="font-bold text-indigo-900 capitalize w-24">
+                                                {slot.dayOfWeek}
+                                            </div>
+                                            <div className="text-indigo-700 font-medium">
+                                                {slot.startTime} - {slot.endTime}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 bg-gray-50 border-t border-gray-100 shrink-0">
+                            <button onClick={() => setSelectedDoctor(null)} className="w-full py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 transition-colors">
+                                Close
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

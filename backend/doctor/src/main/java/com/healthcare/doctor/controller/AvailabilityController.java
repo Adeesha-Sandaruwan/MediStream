@@ -39,6 +39,11 @@ public class AvailabilityController {
         return ResponseEntity.ok(availabilityService.getMine(authentication.getName()));
     }
 
+    @GetMapping("/doctor/{doctorEmail}")
+    public ResponseEntity<List<AvailabilitySlot>> getDoctorAvailability(@PathVariable String doctorEmail) {
+        return ResponseEntity.ok(availabilityService.getByDoctorEmail(doctorEmail));
+    }
+
     @PutMapping("/{slotId}")
     public ResponseEntity<AvailabilitySlot> update(
             Authentication authentication,
