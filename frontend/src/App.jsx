@@ -11,6 +11,7 @@ import DoctorProfile from './pages/DoctorProfile';
 import DoctorAvailability from './pages/DoctorAvailability';
 import DoctorAppointments from './pages/DoctorAppointments';
 import DoctorPrescriptions from './pages/DoctorPrescriptions';
+import PatientPrescriptions from './pages/PatientPrescriptions';
 
 const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
     const { token, role, verificationStatus } = useAuth();
