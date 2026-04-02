@@ -14,6 +14,17 @@ const parseError = async (response, fallback) => {
   }
 };
 
+/** Public list of doctor profiles (requires JWT). */
+export const getAllDoctors = async (token, specialty) => {
+  const q = specialty ? `?specialty=${encodeURIComponent(specialty)}` : '';
+  const response = await fetch(`${API_BASE}/all${q}`, {
+    method: 'GET',
+    headers: buildHeaders(token),
+  });
+  if (!response.ok) throw new Error(await parseError(response, 'Failed to load doctors'));
+  return response.json();
+};
+
 export const getDoctorProfile = async (token) => {
   const response = await fetch(`${API_BASE}/profile`, {
     method: 'GET',
