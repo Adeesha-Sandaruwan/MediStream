@@ -4,18 +4,20 @@ import { AuthContext } from './AuthContext';
 import { getEmailFromJwt } from '../utils/jwt';
 
 export const AuthProvider = ({ children }) => {
-    // 1. We now grab BOTH the token and the role from localStorage
     const [token, setToken] = useState(localStorage.getItem('token') || null);
     const [role, setRole] = useState(localStorage.getItem('role') || null);
+    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || null);
 
     const email = useMemo(() => getEmailFromJwt(token), [token]);
 
-    // Helper function to keep our code clean and prevent repeating ourselves
     const saveAuthData = (data) => {
         setToken(data.token);
         setRole(data.role);
+        setVerificationStatus(data.verificationStatus);
+        
         localStorage.setItem('token', data.token);
         localStorage.setItem('role', data.role);
+        localStorage.setItem('verificationStatus', data.verificationStatus);
     };
 
     const login = async (email, password) => {
@@ -39,13 +41,15 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setToken(null);
         setRole(null);
+        setVerificationStatus(null);
+        
         localStorage.removeItem('token');
         localStorage.removeItem('role');
+        localStorage.removeItem('verificationStatus');
     };
 
     return (
-        // 2. We expose the 'role' to the rest of the app here
-        <AuthContext.Provider value={{ token, role, email, login, register, googleLogin, logout }}>
+        <AuthContext.Provider value={{ token, role, verificationStatus, email, login, register, googleLogin, logout }}>
             {children}
         </AuthContext.Provider>
     );
