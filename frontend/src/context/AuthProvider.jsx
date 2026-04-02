@@ -3,16 +3,20 @@ import axios from 'axios';
 import { AuthContext } from './AuthContext';
 
 export const AuthProvider = ({ children }) => {
-    // 1. We now grab BOTH the token and the role from localStorage
+    // 1. Grab token, role, AND verificationStatus from localStorage
     const [token, setToken] = useState(localStorage.getItem('token') || null);
     const [role, setRole] = useState(localStorage.getItem('role') || null);
+    const [verificationStatus, setVerificationStatus] = useState(localStorage.getItem('verificationStatus') || null);
 
     // Helper function to keep our code clean and prevent repeating ourselves
     const saveAuthData = (data) => {
         setToken(data.token);
         setRole(data.role);
+        setVerificationStatus(data.verificationStatus); // Save to state
+        
         localStorage.setItem('token', data.token);
         localStorage.setItem('role', data.role);
+        localStorage.setItem('verificationStatus', data.verificationStatus); // Save to browser
     };
 
     const login = async (email, password) => {
@@ -36,13 +40,16 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setToken(null);
         setRole(null);
+        setVerificationStatus(null); // Clear state
+        
         localStorage.removeItem('token');
         localStorage.removeItem('role');
+        localStorage.removeItem('verificationStatus'); // Clear from browser
     };
 
     return (
-        // 2. We expose the 'role' to the rest of the app here
-        <AuthContext.Provider value={{ token, role, login, register, googleLogin, logout }}>
+        // 2. We expose 'verificationStatus' to the rest of the app here
+        <AuthContext.Provider value={{ token, role, verificationStatus, login, register, googleLogin, logout }}>
             {children}
         </AuthContext.Provider>
     );

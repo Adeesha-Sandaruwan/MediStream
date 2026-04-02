@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAllUsers, createUser, updateUserRole, deleteUser, updateUserStatus } from '../api/adminApi';
+import { getAllUsers, createUser, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
 import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building } from 'lucide-react';
 
@@ -14,7 +14,7 @@ const AdminDashboard = () => {
     
     const [showModal, setShowModal] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
-    const [selectedAudit, setSelectedAudit] = useState(null); // Now holds { type: 'PATIENT'|'DOCTOR', data: {} }
+    const [selectedAudit, setSelectedAudit] = useState(null);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -29,7 +29,6 @@ const AdminDashboard = () => {
         setIsLoading(true);
         setError('');
         try {
-            // Hardcoded fetch to port 8084 inside the component so you don't touch other files
             const fetchDoctors = fetch('http://localhost:8084/api/doctors/all', {
                 headers: { 
                     'Authorization': `Bearer ${token}`,
@@ -72,15 +71,6 @@ const AdminDashboard = () => {
             setError('Failed to create user. Email might already exist.');
         } finally {
             setIsActionLoading(false);
-        }
-    };
-
-    const handleRoleChange = async (id, newRole) => {
-        try {
-            await updateUserRole(token, id, newRole);
-            fetchDashboardData();
-        } catch (err) {
-            console.error(err);
         }
     };
 
@@ -129,7 +119,7 @@ const AdminDashboard = () => {
         return <AlertOctagon size={16} className="mr-1 text-red-600" />;
     };
 
-    const pendingCount = users.filter(u => u.verificationStatus === 'PENDING').length;
+    const pendingCount = users.filter(u => u.role === 'DOCTOR' && u.verificationStatus === 'PENDING').length;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
@@ -160,7 +150,7 @@ const AdminDashboard = () => {
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
                     <div className="bg-yellow-100 p-4 rounded-full mr-4"><Activity className="text-yellow-600" size={24} /></div>
-                    <div><p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Pending Review</p><p className="text-3xl font-bold">{pendingCount}</p></div>
+                    <div><p className="text-sm font-medium text-gray-500 uppercase tracking-widest">Doctors Pending</p><p className="text-3xl font-bold">{pendingCount}</p></div>
                 </div>
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex items-center">
                     <div className="bg-purple-100 p-4 rounded-full mr-4"><FileText className="text-purple-600" size={24} /></div>
@@ -174,7 +164,7 @@ const AdminDashboard = () => {
                         <thead className="bg-gray-50 text-gray-600 text-xs uppercase tracking-wider border-b">
                             <tr>
                                 <th className="p-4 font-semibold">Email Account</th>
-                                <th className="p-4 font-semibold">Role</th>
+                                <th className="p-4 font-semibold">System Role</th>
                                 <th className="p-4 font-semibold">Verification</th>
                                 <th className="p-4 font-semibold text-right">Actions</th>
                             </tr>
@@ -185,17 +175,33 @@ const AdminDashboard = () => {
                             ) : users.map((user) => (
                                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-bold text-gray-900">{user.email}</td>
+                                    
+                                    {/* ROLES ARE NOW READ-ONLY */}
                                     <td className="p-4">
-                                        <select value={user.role} onChange={(e) => handleRoleChange(user.id, e.target.value)} className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 outline-none">
-                                            <option value="PATIENT">PATIENT</option><option value="DOCTOR">DOCTOR</option><option value="ADMIN">ADMIN</option>
-                                        </select>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                            user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 
+                                            user.role === 'DOCTOR' ? 'bg-blue-100 text-blue-700' : 
+                                            'bg-gray-100 text-gray-700'
+                                        }`}>
+                                            {user.role}
+                                        </span>
                                     </td>
+
                                     <td className="p-4">
                                         <div className="flex items-center">
-                                            {getStatusIcon(user.verificationStatus || 'PENDING')}
-                                            <select value={user.verificationStatus || 'PENDING'} onChange={(e) => handleStatusChange(user.id, e.target.value)} className="text-xs font-bold bg-transparent outline-none cursor-pointer">
-                                                <option value="PENDING">PENDING</option><option value="APPROVED">APPROVED</option><option value="REJECTED">REJECTED</option><option value="SUSPENDED">SUSPENDED</option>
-                                            </select>
+                                            {/* PATIENTS ARE ALWAYS ACTIVE, DOCTORS CAN BE CHANGED */}
+                                            {user.role === 'DOCTOR' ? (
+                                                <>
+                                                    {getStatusIcon(user.verificationStatus || 'PENDING')}
+                                                    <select value={user.verificationStatus || 'PENDING'} onChange={(e) => handleStatusChange(user.id, e.target.value)} className="text-xs font-bold bg-transparent outline-none cursor-pointer">
+                                                        <option value="PENDING">PENDING</option><option value="APPROVED">APPROVED</option><option value="REJECTED">REJECTED</option><option value="SUSPENDED">SUSPENDED</option>
+                                                    </select>
+                                                </>
+                                            ) : (
+                                                <span className="flex items-center text-xs font-bold text-green-700">
+                                                    <CheckCircle size={16} className="mr-1 text-green-600" /> ACTIVE
+                                                </span>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="p-4 text-right space-x-2">
@@ -234,7 +240,7 @@ const AdminDashboard = () => {
                             </div>
                             <div className="pt-4 flex justify-end space-x-3">
                                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg">Cancel</button>
-                                <button type="submit" disabled={isActionLoading} className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:bg-gray-400 flex items-center">
+                                <button type="submit" disabled={isActionLoading} className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors flex items-center">
                                     {isActionLoading ? <Loader2 className="animate-spin mr-2" size={18} /> : null} Create User
                                 </button>
                             </div>
@@ -255,7 +261,6 @@ const AdminDashboard = () => {
                         </div>
                         
                         <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
-                            
                             {/* --- PATIENT AUDIT VIEW --- */}
                             {selectedAudit.type === 'PATIENT' && (
                                 <>

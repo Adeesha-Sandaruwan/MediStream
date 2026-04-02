@@ -12,14 +12,21 @@ import DoctorAvailability from './pages/DoctorAvailability';
 import DoctorAppointments from './pages/DoctorAppointments';
 import DoctorPrescriptions from './pages/DoctorPrescriptions';
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
-    const { token, role } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
+    const { token, role, verificationStatus } = useAuth();
+    
     if (!token) {
         return <Navigate to="/auth" replace />;
     }
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />;
     }
+    // Hard Lockdown: If feature requires verification, and user is a Doctor who is NOT approved, bounce them.
+    // (Patients are bypassed here since they don't require verification)
+    if (requireVerified && role === 'DOCTOR' && verificationStatus !== 'APPROVED') {
+        return <Navigate to="/doctor-dashboard" replace />;
+    }
+    
     return children;
 };
 
@@ -62,84 +69,47 @@ export default function App() {
             
             <Routes>
                 <Route path="/auth" element={<Auth />} />
-                
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
-                <Route 
-                    path="/patient-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} 
-                />
+                {/* Patient Routes */}
+                <Route path="/patient-dashboard" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} />
+                <Route path="/profile" element={
+                    <ProtectedRoute allowedRoles={['PATIENT']}>
+                        <div className="py-6">
+                            <div className="max-w-7xl mx-auto px-4 mb-6">
+                                <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">&larr; Back to Dashboard</Link>
+                            </div>
+                            <MedicalProfile />
+                        </div>
+                    </ProtectedRoute>
+                } />
+                <Route path="/reports" element={
+                    <ProtectedRoute allowedRoles={['PATIENT']}>
+                        <div className="py-6">
+                            <div className="max-w-7xl mx-auto px-4 mb-6">
+                                <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">&larr; Back to Dashboard</Link>
+                            </div>
+                            <MedicalReports />
+                        </div>
+                    </ProtectedRoute>
+                } />
+
+                {/* Doctor Routes */}
+                <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
                 
-                <Route 
-                    path="/profile" 
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalProfile />
-                            </div>
-                        </ProtectedRoute>
-                    } 
-                />
+                {/* Profile does NOT require verification (so they can fill it out) */}
+                <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
+                
+                {/* These require verification! */}
+                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
+                <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
+                <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 
-                <Route 
-                    path="/reports" 
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalReports />
-                            </div>
-                        </ProtectedRoute>
-                    } 
-                />
+                {/* Shared Routes */}
+                <Route path="/telemedicine" element={<ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']} requireVerified={true}><Telemedicine /></ProtectedRoute>} />
 
-                <Route 
-                    path="/doctor-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
-                />
-
-                <Route
-                    path="/doctor-profile"
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>}
-                />
-
-                <Route
-                    path="/doctor-availability"
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAvailability /></ProtectedRoute>}
-                />
-
-                <Route
-                    path="/doctor-appointments"
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorAppointments /></ProtectedRoute>}
-                />
-
-                <Route
-                    path="/doctor-prescriptions"
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorPrescriptions /></ProtectedRoute>}
-                />
-
-                <Route
-                    path="/telemedicine"
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']}>
-                            <Telemedicine />
-                        </ProtectedRoute>
-                    }
-                />
-
-                <Route 
-                    path="/admin-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} 
-                />
+                {/* Admin Routes */}
+                <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
