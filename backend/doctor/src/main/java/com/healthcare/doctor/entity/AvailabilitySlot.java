@@ -11,6 +11,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
+
 @Entity
 @Table(name = "availability_slots")
 @Data
@@ -29,11 +31,16 @@ public class AvailabilitySlot {
     @Column(nullable = false)
     private String dayOfWeek;
 
+    private LocalDate specificDate;
+
     @Column(nullable = false)
     private String startTime;
 
     @Column(nullable = false)
     private String endTime;
+
+    @Column
+    private String slotType;
 
     private Boolean active;
 }

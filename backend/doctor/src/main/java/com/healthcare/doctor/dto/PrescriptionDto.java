@@ -15,5 +15,6 @@ public class PrescriptionDto {
     private String diagnosis;
     private String medications;
     private String advice;
+    private String doctorSignature;
     private String followUpDate;
 }

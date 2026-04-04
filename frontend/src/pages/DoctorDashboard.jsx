@@ -1,106 +1,172 @@
 import { Link } from 'react-router-dom';
-import { CalendarClock, ClipboardCheck, Stethoscope, UserRound, Video, AlertCircle, CheckCircle2 } from 'lucide-react';
+import {
+  CalendarClock,
+  ClipboardCheck,
+  Stethoscope,
+  UserRound,
+  Video,
+  AlertCircle,
+  CheckCircle2,
+  BadgeCheck,
+  Sparkles,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function DoctorDashboard() {
-    const { verificationStatus } = useAuth();
-    const isApproved = verificationStatus === 'APPROVED';
+  const { verificationStatus } = useAuth();
+  const isApproved = verificationStatus === 'APPROVED';
 
-    return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Physician Portal</h1>
-                <p className="text-gray-600">Navigate quickly to all doctor tools and workflows.</p>
-            </div>
+  const features = [
+    {
+      title: 'Doctor Profile',
+      description: 'Manage your credentials, specialties, consultation details, and public profile information.',
+      to: '/doctor-profile',
+      action: 'Manage Profile',
+      icon: UserRound,
+      iconClasses: 'bg-blue-100 text-blue-700',
+      buttonClasses: 'bg-blue-600 hover:bg-blue-700',
+      locked: false,
+      cardAccent: 'border-blue-200 ring-1 ring-blue-100',
+    },
+    {
+      title: 'Availability',
+      description: 'Publish clinic slots and keep your weekly consultation schedule up to date.',
+      to: '/doctor-availability',
+      action: 'Manage Availability',
+      icon: CalendarClock,
+      iconClasses: 'bg-indigo-100 text-indigo-700',
+      buttonClasses: 'bg-indigo-600 hover:bg-indigo-700',
+      locked: !isApproved,
+      cardAccent: 'border-indigo-200',
+    },
+    {
+      title: 'Appointments',
+      description: 'Accept or reject patient requests quickly and maintain an efficient booking flow.',
+      to: '/doctor-appointments',
+      action: 'Review Requests',
+      icon: ClipboardCheck,
+      iconClasses: 'bg-cyan-100 text-cyan-700',
+      buttonClasses: 'bg-cyan-600 hover:bg-cyan-700',
+      locked: !isApproved,
+      cardAccent: 'border-cyan-200',
+    },
+    {
+      title: 'Prescriptions',
+      description: 'Issue digital prescriptions with diagnosis, medications, advice, and follow-up notes.',
+      to: '/doctor-prescriptions',
+      action: 'Issue Prescriptions',
+      icon: Stethoscope,
+      iconClasses: 'bg-violet-100 text-violet-700',
+      buttonClasses: 'bg-violet-600 hover:bg-violet-700',
+      locked: !isApproved,
+      cardAccent: 'border-violet-200',
+    },
+  ];
 
-            {/* Verification Status Banner */}
-            {!isApproved ? (
-                <div className="bg-amber-50 border-l-4 border-amber-500 p-6 mb-8 rounded-r-xl shadow-sm flex items-start">
-                    <AlertCircle className="text-amber-600 mt-1 mr-4 shrink-0" size={28} />
-                    <div>
-                        <h3 className="text-lg font-bold text-amber-800">Account Pending Verification</h3>
-                        <p className="text-amber-700 mt-1">
-                            Your account is currently under administrative review. To expedite this process, please ensure your <span className="font-bold">Doctor Profile</span> is completely filled out with your valid medical license and qualifications.
-                        </p>
-                        <p className="text-amber-700 font-bold mt-2">Clinical tools will unlock once approved.</p>
-                    </div>
-                </div>
-            ) : (
-                <div className="bg-green-50 border border-green-200 p-4 mb-8 rounded-xl shadow-sm flex items-center">
-                    <CheckCircle2 className="text-green-600 mr-3 shrink-0" size={24} />
-                    <p className="text-green-800 font-bold">Your physician credentials are verified and active.</p>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                
-                {/* ALWAYS UNLOCKED: Doctor Profile */}
-                <div className="bg-white rounded-xl shadow-md p-6 border border-blue-200 hover:shadow-xl transition-all duration-300 ring-2 ring-blue-50">
-                    <div className="flex items-center mb-4">
-                        <div className="p-3 bg-blue-100 text-blue-700 rounded-lg"><UserRound size={24} /></div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-800">Doctor Profile</h2>
-                    </div>
-                    <p className="text-gray-600 mb-6 h-12">Manage your professional details, specialty, and consultation information.</p>
-                    <Link to="/doctor-profile" className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">
-                        Manage Profile
-                    </Link>
-                </div>
-
-                {/* LOCKED CARDS */}
-                <div className={`bg-white rounded-xl shadow-md p-6 border border-gray-100 transition-all duration-300 ${!isApproved ? 'opacity-60 grayscale cursor-not-allowed' : 'hover:shadow-xl'}`}>
-                    <div className="flex items-center mb-4">
-                        <div className="p-3 bg-indigo-100 text-indigo-700 rounded-lg"><CalendarClock size={24} /></div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-800">Availability</h2>
-                    </div>
-                    <p className="text-gray-600 mb-6 h-12">Create and maintain your clinic schedule and available consultation slots.</p>
-                    {isApproved ? (
-                        <Link to="/doctor-availability" className="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">Manage Availability</Link>
-                    ) : (
-                        <button disabled className="block w-full text-center bg-gray-300 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">Locked</button>
-                    )}
-                </div>
-
-                <div className={`bg-white rounded-xl shadow-md p-6 border border-gray-100 transition-all duration-300 ${!isApproved ? 'opacity-60 grayscale cursor-not-allowed' : 'hover:shadow-xl'}`}>
-                    <div className="flex items-center mb-4">
-                        <div className="p-3 bg-amber-100 text-amber-700 rounded-lg"><ClipboardCheck size={24} /></div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-800">Appointments</h2>
-                    </div>
-                    <p className="text-gray-600 mb-6 h-12">Review patient requests and approve or reject appointments confidently.</p>
-                    {isApproved ? (
-                        <Link to="/doctor-appointments" className="block w-full text-center bg-amber-600 hover:bg-amber-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">Review Appointments</Link>
-                    ) : (
-                        <button disabled className="block w-full text-center bg-gray-300 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">Locked</button>
-                    )}
-                </div>
-
-                <div className={`bg-white rounded-xl shadow-md p-6 border border-gray-100 transition-all duration-300 ${!isApproved ? 'opacity-60 grayscale cursor-not-allowed' : 'hover:shadow-xl'}`}>
-                    <div className="flex items-center mb-4">
-                        <div className="p-3 bg-violet-100 text-violet-700 rounded-lg"><Stethoscope size={24} /></div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-800">Prescriptions</h2>
-                    </div>
-                    <p className="text-gray-600 mb-6 h-12">Issue digital prescriptions and track clinical advice for follow-up care.</p>
-                    {isApproved ? (
-                        <Link to="/doctor-prescriptions" className="block w-full text-center bg-violet-600 hover:bg-violet-700 text-white font-medium py-2 px-4 rounded-lg transition-colors">Manage Prescriptions</Link>
-                    ) : (
-                        <button disabled className="block w-full text-center bg-gray-300 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">Locked</button>
-                    )}
-                </div>
-
-                <div className={`md:col-span-2 xl:col-span-2 rounded-xl shadow-md p-6 border transition-all duration-300 ${!isApproved ? 'bg-gray-100 border-gray-300 opacity-60 grayscale cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-teal-700 border-emerald-500 text-white'}`}>
-                    <div className="flex items-center mb-4">
-                        <div className={`p-3 rounded-lg ${!isApproved ? 'bg-gray-300 text-gray-500' : 'bg-white/20 text-white'}`}>
-                            <Video size={24} />
-                        </div>
-                        <h2 className={`ml-4 text-xl font-semibold ${!isApproved ? 'text-gray-800' : 'text-white'}`}>Telemedicine</h2>
-                    </div>
-                    <p className={`${!isApproved ? 'text-gray-600' : 'text-emerald-50'} mb-6 h-12`}>Launch secure live consultations and continue care through video sessions.</p>
-                    {isApproved ? (
-                        <Link to="/telemedicine" className="block w-full sm:w-auto text-center bg-white text-teal-700 hover:bg-emerald-50 font-semibold py-2 px-6 rounded-lg transition-colors">Open Telemedicine</Link>
-                    ) : (
-                        <button disabled className="block w-full sm:w-auto text-center bg-gray-300 text-gray-500 font-semibold py-2 px-6 rounded-lg cursor-not-allowed">Locked</button>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      <div className="rounded-3xl bg-gradient-to-r from-blue-700 via-indigo-700 to-cyan-700 text-white p-6 sm:p-8 shadow-lg overflow-hidden relative">
+        <div className="absolute -top-12 -right-8 w-44 h-44 rounded-full bg-white/10 blur-xl" />
+        <div className="absolute -bottom-10 left-10 w-36 h-36 rounded-full bg-cyan-200/20 blur-2xl" />
+        <div className="relative z-10">
+          <div className="inline-flex items-center gap-2 bg-white/15 border border-white/20 rounded-full px-3 py-1 text-xs font-semibold tracking-wide">
+            <Sparkles size={14} />
+            Clinical Workspace
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight mt-4">Doctor Management Service</h1>
+          <p className="text-blue-100 mt-3 max-w-2xl">
+            Manage your profile, availability, appointment decisions, telemedicine consultations, and digital prescriptions from one place.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="text-xs font-semibold bg-white/20 px-3 py-1 rounded-full">Profile Management</span>
+            <span className="text-xs font-semibold bg-white/20 px-3 py-1 rounded-full">Schedule Control</span>
+            <span className="text-xs font-semibold bg-white/20 px-3 py-1 rounded-full">Prescription Workflow</span>
+          </div>
         </div>
-    );
+      </div>
+
+      {!isApproved ? (
+        <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl shadow-sm flex items-start">
+          <AlertCircle className="text-amber-600 mt-1 mr-4 shrink-0" size={28} />
+          <div>
+            <h3 className="text-lg font-bold text-amber-800">Account Pending Verification</h3>
+            <p className="text-amber-700 mt-1">
+              Your account is currently under administrative review. Complete your profile with accurate license and qualification details to speed up approval.
+            </p>
+            <p className="text-amber-700 font-bold mt-2">Clinical tools will unlock after verification.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-sm flex items-center justify-between gap-4">
+          <div className="flex items-center">
+            <CheckCircle2 className="text-emerald-600 mr-3 shrink-0" size={24} />
+            <p className="text-emerald-800 font-bold">Your physician account is verified and fully active.</p>
+          </div>
+          <div className="hidden sm:inline-flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-100 px-3 py-1 rounded-full">
+            <BadgeCheck size={14} />
+            Verified
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {features.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={item.title}
+              className={`bg-white rounded-2xl shadow-sm p-6 border transition-all duration-300 ${item.locked ? 'opacity-60 grayscale cursor-not-allowed border-gray-200' : `hover:shadow-xl ${item.cardAccent}`}`}
+            >
+              <div className="flex items-center mb-4">
+                <div className={`p-3 rounded-xl ${item.iconClasses}`}>
+                  <Icon size={22} />
+                </div>
+                <h2 className="ml-3 text-lg font-bold text-gray-800">{item.title}</h2>
+              </div>
+              <p className="text-gray-600 mb-6 min-h-16 text-sm leading-relaxed">{item.description}</p>
+
+              {item.locked ? (
+                <button disabled className="block w-full text-center bg-gray-300 text-gray-500 font-semibold py-2.5 px-4 rounded-xl cursor-not-allowed">
+                  Locked
+                </button>
+              ) : (
+                <Link
+                  to={item.to}
+                  className={`block w-full text-center text-white font-semibold py-2.5 px-4 rounded-xl transition-colors ${item.buttonClasses}`}
+                >
+                  {item.action}
+                </Link>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className={`rounded-2xl shadow-md p-6 border transition-all duration-300 ${!isApproved ? 'bg-gray-100 border-gray-300 opacity-70 grayscale cursor-not-allowed' : 'bg-gradient-to-r from-emerald-600 to-teal-700 border-emerald-500 text-white'}`}>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <div className={`p-3 rounded-xl ${!isApproved ? 'bg-gray-300 text-gray-500' : 'bg-white/20 text-white'}`}>
+              <Video size={24} />
+            </div>
+            <div>
+              <h2 className={`text-xl font-bold ${!isApproved ? 'text-gray-800' : 'text-white'}`}>Telemedicine Sessions</h2>
+              <p className={`${!isApproved ? 'text-gray-600' : 'text-emerald-50'} mt-1 text-sm`}>
+                Conduct secure video consultations and continue patient care remotely.
+              </p>
+            </div>
+          </div>
+
+          {isApproved ? (
+            <Link to="/telemedicine" className="block w-full md:w-auto text-center bg-white text-teal-700 hover:bg-emerald-50 font-bold py-2.5 px-6 rounded-xl transition-colors">
+              Open Telemedicine
+            </Link>
+          ) : (
+            <button disabled className="block w-full md:w-auto text-center bg-gray-300 text-gray-500 font-bold py-2.5 px-6 rounded-xl cursor-not-allowed">
+              Locked
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

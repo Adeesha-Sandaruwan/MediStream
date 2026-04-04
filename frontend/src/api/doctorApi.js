@@ -8,9 +8,14 @@ const buildHeaders = (token) => ({
 const parseError = async (response, fallback) => {
   try {
     const data = await response.json();
-    return data.message || fallback;
+    return data.message || data.error || data.detail || fallback;
   } catch {
-    return fallback;
+    try {
+      const text = await response.text();
+      return text || fallback;
+    } catch {
+      return fallback;
+    }
   }
 };
 

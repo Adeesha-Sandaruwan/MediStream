@@ -40,6 +40,11 @@ public class DigitalPrescription {
     @Column(columnDefinition = "TEXT")
     private String advice;
 
+    private String doctorSignature;
+
+    @Column(columnDefinition = "TEXT")
+    private String doctorSignatureImage;
+
     private String followUpDate;
     private LocalDateTime issuedAt;
 }

@@ -8,4 +8,5 @@ import java.util.List;
 public interface DigitalPrescriptionRepository extends JpaRepository<DigitalPrescription, Long> {
     List<DigitalPrescription> findByDoctorEmailOrderByIssuedAtDesc(String doctorEmail);
     List<DigitalPrescription> findByPatientEmailOrderByIssuedAtDesc(String patientEmail);
+    List<DigitalPrescription> findByPatientEmailIgnoreCaseOrderByIssuedAtDesc(String patientEmail);
 }

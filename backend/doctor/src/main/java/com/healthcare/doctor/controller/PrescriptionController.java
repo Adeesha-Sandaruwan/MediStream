@@ -43,4 +43,11 @@ public class PrescriptionController {
     ) {
         return ResponseEntity.ok(prescriptionService.getPatientPrescriptions(patientEmail));
     }
+
+    @GetMapping("/patient/me")
+    public ResponseEntity<List<DigitalPrescription>> getMyPatientPrescriptionHistory(
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(prescriptionService.getPatientPrescriptionsForAuthenticatedUser(authentication.getName()));
+    }
 }

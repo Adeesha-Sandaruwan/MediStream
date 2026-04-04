@@ -20,5 +20,6 @@ public class DoctorProfileDto {
     private String consultationFee;
     private String hospitalAffiliation;
     private String bio;
+    private String doctorSignatureImage;
     private Boolean verified;
 }

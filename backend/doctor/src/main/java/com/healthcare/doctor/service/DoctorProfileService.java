@@ -36,6 +36,7 @@ public class DoctorProfileService {
         profile.setConsultationFee(dto.getConsultationFee());
         profile.setHospitalAffiliation(dto.getHospitalAffiliation());
         profile.setBio(dto.getBio());
+        profile.setDoctorSignatureImage(resolveSignatureImage(dto.getDoctorSignatureImage()));
         if (dto.getVerified() != null) {
             profile.setVerified(dto.getVerified());
         }
@@ -55,5 +56,19 @@ public class DoctorProfileService {
         DoctorProfile profile = doctorProfileRepository.findByEmail(email)
                 .orElseThrow(() -> new RuntimeException("Doctor profile not found"));
         doctorProfileRepository.delete(profile);
+    }
+
+    private String resolveSignatureImage(String signatureImage) {
+        if (signatureImage == null || signatureImage.isBlank()) {
+            return null;
+        }
+        String trimmed = signatureImage.trim();
+        if (!trimmed.startsWith("data:image/")) {
+            throw new RuntimeException("Invalid signature image format");
+        }
+        if (trimmed.length() > 4_000_000) {
+            throw new RuntimeException("Signature image is too large. Please use an image under 3MB.");
+        }
+        return trimmed;
     }
 }

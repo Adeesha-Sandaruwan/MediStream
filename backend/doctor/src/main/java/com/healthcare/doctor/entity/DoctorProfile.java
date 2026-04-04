@@ -39,5 +39,8 @@ public class DoctorProfile {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    @Column(columnDefinition = "TEXT")
+    private String doctorSignatureImage;
+
     private Boolean verified;
 }
