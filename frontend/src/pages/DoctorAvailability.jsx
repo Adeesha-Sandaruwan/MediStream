@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, Trash2, Video, Clock3, PlusCircle } from 'lucide-react';
+import { CalendarClock, Trash2, Video, Clock3, PlusCircle, PencilLine, Save, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createAvailabilitySlot, deleteAvailabilitySlot, getMyAvailability } from '../api/doctorApi';
+import { createAvailabilitySlot, deleteAvailabilitySlot, getMyAvailability, updateAvailabilitySlot } from '../api/doctorApi';
 
 const initialAvailabilityState = {
   dayOfWeek: 'MONDAY',
@@ -17,6 +17,8 @@ export default function DoctorAvailability() {
   const [error, setError] = useState('');
   const [availabilityForm, setAvailabilityForm] = useState(initialAvailabilityState);
   const [availability, setAvailability] = useState([]);
+  const [editingSlotId, setEditingSlotId] = useState(null);
+  const [editForm, setEditForm] = useState(initialAvailabilityState);
 
   const loadAvailability = useCallback(async () => {
     setError('');
@@ -54,6 +56,38 @@ export default function DoctorAvailability() {
       await loadAvailability();
     } catch (err) {
       setError(err.message || 'Failed to delete availability slot');
+    }
+  };
+
+  const handleStartEdit = (slot) => {
+    setError('');
+    setEditingSlotId(slot.id);
+    setEditForm({
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime?.slice(0, 5) || '09:00',
+      endTime: slot.endTime?.slice(0, 5) || '10:00',
+      active: Boolean(slot.active),
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSlotId(null);
+    setEditForm(initialAvailabilityState);
+  };
+
+  const handleUpdateAvailability = async (slotId) => {
+    setError('');
+    if (editForm.startTime >= editForm.endTime) {
+      setError('End time must be later than start time.');
+      return;
+    }
+    try {
+      await updateAvailabilitySlot(token, slotId, editForm);
+      setEditingSlotId(null);
+      setEditForm(initialAvailabilityState);
+      await loadAvailability();
+    } catch (err) {
+      setError(err.message || 'Failed to update availability slot');
     }
   };
 
@@ -118,20 +152,64 @@ export default function DoctorAvailability() {
           <h2 className="text-lg font-bold text-gray-900 mb-4">Published Availability</h2>
           <div className="space-y-3">
             {availability.map((slot) => (
-              <div key={slot.id} className="flex items-center justify-between border border-gray-200 rounded-xl p-3 hover:shadow-sm transition-shadow">
-                <div className="text-sm text-gray-700">
-                  <div className="font-semibold text-gray-900 flex items-center mb-1">
-                    <CalendarClock className="mr-2 text-indigo-600" size={16} />
-                    {slot.dayOfWeek}
+              <div key={slot.id} className="border border-gray-200 rounded-xl p-3 hover:shadow-sm transition-shadow">
+                {editingSlotId === slot.id ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.dayOfWeek} onChange={(e) => setEditForm({ ...editForm, dayOfWeek: e.target.value })}>
+                        {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                      <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.startTime} onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })} />
+                      <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.endTime} onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })} />
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={editForm.active}
+                        onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
+                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      Visible to patients (Active)
+                    </label>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => handleUpdateAvailability(slot.id)} className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg font-semibold transition-colors">
+                        <Save className="mr-1" size={15} /> Save
+                      </button>
+                      <button onClick={handleCancelEdit} className="inline-flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-semibold transition-colors">
+                        <X className="mr-1" size={15} /> Cancel
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center text-gray-600">
-                    <Clock3 className="mr-2" size={14} />
-                    {slot.startTime} - {slot.endTime}
+                ) : (
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm text-gray-700">
+                      <div className="font-semibold text-gray-900 flex items-center mb-1">
+                        <CalendarClock className="mr-2 text-indigo-600" size={16} />
+                        {slot.dayOfWeek}
+                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-semibold ${slot.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {slot.active ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <Clock3 className="mr-2" size={14} />
+                        {slot.startTime} - {slot.endTime}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleStartEdit(slot)} className="inline-flex items-center text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-2 rounded-lg transition-colors">
+                        <PencilLine size={16} />
+                      </button>
+                      <button onClick={() => handleDeleteAvailability(slot.id)} className="inline-flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <button onClick={() => handleDeleteAvailability(slot.id)} className="inline-flex items-center text-red-600 hover:text-red-700 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
-                  <Trash2 size={16} />
-                </button>
+                )}
               </div>
             ))}
             {availability.length === 0 && (
