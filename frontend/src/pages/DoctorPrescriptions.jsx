@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardPlus, Video } from 'lucide-react';
+import { ClipboardPlus, Video, Pill, CalendarDays, UserRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getMyPrescriptions, issuePrescription } from '../api/doctorApi';
 
@@ -53,52 +53,85 @@ export default function DoctorPrescriptions() {
   };
 
   if (isLoading) {
-    return <div className="max-w-7xl mx-auto px-4 py-10">Loading prescriptions...</div>;
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 text-gray-600">Loading prescriptions...</div>
+      </div>
+    );
   }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10 space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <Link to="/doctor-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
+          <Link to="/doctor-dashboard" className="text-indigo-600 hover:text-indigo-800 font-medium">
             &larr; Back to Doctor Dashboard
           </Link>
-          <h1 className="text-3xl font-bold text-gray-900 mt-2">Digital Prescriptions</h1>
+          <h1 className="text-3xl font-black text-gray-900 mt-2 tracking-tight">Digital Prescriptions</h1>
         </div>
-        <Link to="/telemedicine" className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg">
+        <Link to="/telemedicine" className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm">
           <Video className="mr-2" size={18} /> Open Telemedicine
         </Link>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Link to="/doctor-profile" className="text-sm px-3 py-1 rounded-full bg-blue-100 text-blue-700">Profile</Link>
-        <Link to="/doctor-availability" className="text-sm px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">Availability</Link>
-        <Link to="/doctor-appointments" className="text-sm px-3 py-1 rounded-full bg-amber-100 text-amber-700">Appointments</Link>
+      <div className="rounded-2xl bg-gradient-to-r from-violet-700 via-purple-700 to-indigo-700 text-white p-6 shadow-md">
+        <h2 className="text-xl font-bold">Prescription Workspace</h2>
+        <p className="text-violet-100 text-sm mt-1">Create secure digital prescriptions and keep treatment records organized.</p>
+        <div className="flex flex-wrap gap-2 mt-4">
+          <Link to="/doctor-profile" className="text-xs px-3 py-1 rounded-full bg-white/20 hover:bg-white/30">Profile</Link>
+          <Link to="/doctor-availability" className="text-xs px-3 py-1 rounded-full bg-white/20 hover:bg-white/30">Availability</Link>
+          <Link to="/doctor-appointments" className="text-xs px-3 py-1 rounded-full bg-white/20 hover:bg-white/30">Appointments</Link>
+        </div>
       </div>
 
-      {error && <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-4 rounded-lg">{error}</div>}
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error}</div>}
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-        <form onSubmit={handleIssuePrescription} className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-          <input className="p-2 border rounded" placeholder="Patient email" value={prescriptionForm.patientEmail} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientEmail: e.target.value })} required />
-          <input className="p-2 border rounded" placeholder="Appointment ID (optional)" value={prescriptionForm.appointmentId} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, appointmentId: e.target.value })} />
-          <input className="p-2 border rounded md:col-span-2" placeholder="Diagnosis" value={prescriptionForm.diagnosis} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, diagnosis: e.target.value })} required />
-          <textarea className="p-2 border rounded md:col-span-2" rows="2" placeholder="Medications" value={prescriptionForm.medications} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, medications: e.target.value })} required />
-          <textarea className="p-2 border rounded md:col-span-2" rows="2" placeholder="Advice" value={prescriptionForm.advice} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, advice: e.target.value })} />
-          <input className="p-2 border rounded" placeholder="Follow-up date (YYYY-MM-DD)" value={prescriptionForm.followUpDate} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, followUpDate: e.target.value })} />
-          <button type="submit" className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg">
-            <ClipboardPlus className="mr-2" size={16} /> Issue Prescription
-          </button>
-        </form>
-        <div className="space-y-2">
-          {prescriptions.map((item) => (
-            <div key={item.id} className="border rounded p-3">
-              <p className="font-medium text-gray-800">{item.patientEmail}</p>
-              <p className="text-sm text-gray-600">Diagnosis: {item.diagnosis}</p>
-              <p className="text-sm text-gray-600">Issued: {item.issuedAt}</p>
-            </div>
-          ))}
-          {prescriptions.length === 0 && <p className="text-sm text-gray-500">No prescriptions issued yet.</p>}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-1 h-fit">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Issue New Prescription</h2>
+          <form onSubmit={handleIssuePrescription} className="space-y-3">
+            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Patient email" value={prescriptionForm.patientEmail} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientEmail: e.target.value })} required />
+            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Appointment ID (optional)" value={prescriptionForm.appointmentId} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, appointmentId: e.target.value })} />
+            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Diagnosis" value={prescriptionForm.diagnosis} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, diagnosis: e.target.value })} required />
+            <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Medications" value={prescriptionForm.medications} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, medications: e.target.value })} required />
+            <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Advice" value={prescriptionForm.advice} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, advice: e.target.value })} />
+            <input type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" value={prescriptionForm.followUpDate} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, followUpDate: e.target.value })} />
+            <button type="submit" className="w-full inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
+              <ClipboardPlus className="mr-2" size={16} /> Issue Prescription
+            </button>
+          </form>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-2">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Issued Prescriptions</h2>
+          <div className="space-y-3">
+            {prescriptions.map((item) => (
+              <div key={item.id} className="border border-gray-200 rounded-2xl overflow-hidden">
+                <div className="bg-violet-50 border-b border-violet-100 px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div className="text-violet-900 font-semibold flex items-center text-sm">
+                    <UserRound className="mr-2" size={14} />
+                    {item.patientEmail}
+                  </div>
+                  <div className="text-xs text-violet-700 font-semibold uppercase tracking-wide flex items-center">
+                    <CalendarDays className="mr-1" size={12} />
+                    {new Date(item.issuedAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Diagnosis</p>
+                  <p className="font-semibold text-gray-900 flex items-start">
+                    <Pill className="mr-2 mt-0.5 text-violet-600 shrink-0" size={16} />
+                    {item.diagnosis}
+                  </p>
+                </div>
+              </div>
+            ))}
+            {prescriptions.length === 0 && (
+              <div className="text-sm text-gray-500 border border-dashed border-gray-300 rounded-xl p-6 text-center">
+                No prescriptions issued yet.
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
