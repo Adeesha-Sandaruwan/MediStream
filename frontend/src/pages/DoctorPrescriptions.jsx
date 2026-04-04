@@ -44,6 +44,10 @@ export default function DoctorPrescriptions() {
     e.preventDefault();
     setError('');
     setSuccess('');
+    if (!prescriptionForm.doctorSignature && !prescriptionForm.doctorSignatureImage) {
+      setError('Add either typed digital signature or signature image.');
+      return;
+    }
     try {
       const created = await issuePrescription(token, {
         ...prescriptionForm,
@@ -60,38 +64,78 @@ export default function DoctorPrescriptions() {
   const handleDownloadPrescriptionPdf = (item) => {
     const doc = new jsPDF();
     const issuedDate = item.issuedAt ? new Date(item.issuedAt).toLocaleString() : 'N/A';
-    const lines = [
-      'Digital Prescription',
-      '',
-      `Doctor: ${item.doctorEmail || 'N/A'}`,
-      `Patient: ${item.patientEmail || 'N/A'}`,
-      `Issued At: ${issuedDate}`,
-      `Appointment ID: ${item.appointmentId || 'N/A'}`,
-      `Follow-up Date: ${item.followUpDate || 'N/A'}`,
-      '',
-      `Diagnosis: ${item.diagnosis || ''}`,
-      '',
-      'Medications:',
-      item.medications || '',
-      '',
-      'Advice:',
-      item.advice || 'No additional advice provided.',
-      '',
-      `Digital Signature: ${item.doctorSignature || item.doctorEmail || 'N/A'}`,
-    ];
+    const pageWidth = doc.internal.pageSize.getWidth();
 
-    let y = 20;
-    lines.forEach((line, index) => {
-      const fontSize = index === 0 ? 16 : 11;
-      doc.setFontSize(fontSize);
-      const split = doc.splitTextToSize(line, 180);
-      doc.text(split, 15, y);
-      y += split.length * 6;
-      if (y > 275) {
-        doc.addPage();
-        y = 20;
+    doc.setFillColor(91, 33, 182);
+    doc.rect(0, 0, pageWidth, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(17);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Digital Prescription', 14, 18);
+
+    doc.setFontSize(10);
+    doc.text('MediStream Doctor Service', pageWidth - 58, 18);
+
+    doc.setTextColor(31, 41, 55);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+
+    doc.setFillColor(245, 243, 255);
+    doc.roundedRect(12, 34, pageWidth - 24, 35, 3, 3, 'F');
+    doc.text(`Doctor: ${item.doctorEmail || 'N/A'}`, 16, 44);
+    doc.text(`Patient: ${item.patientEmail || 'N/A'}`, 16, 52);
+    doc.text(`Issued At: ${issuedDate}`, 16, 60);
+    doc.text(`Appointment ID: ${item.appointmentId || 'N/A'}`, pageWidth / 2, 44);
+    doc.text(`Follow-up Date: ${item.followUpDate || 'N/A'}`, pageWidth / 2, 52);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(76, 29, 149);
+    doc.text('Diagnosis', 14, 83);
+    doc.setTextColor(31, 41, 55);
+    doc.setFont('helvetica', 'normal');
+    const diagnosisText = doc.splitTextToSize(item.diagnosis || 'N/A', pageWidth - 28);
+    doc.text(diagnosisText, 14, 91);
+
+    let y = 100 + diagnosisText.length * 5;
+
+    doc.setFillColor(249, 250, 251);
+    doc.roundedRect(12, y, pageWidth - 24, 52, 3, 3, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(79, 70, 229);
+    doc.text('Medications', 16, y + 10);
+    doc.setTextColor(22, 101, 52);
+    doc.text('Doctor Advice', pageWidth / 2 + 4, y + 10);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(31, 41, 55);
+    const meds = doc.splitTextToSize(item.medications || 'N/A', (pageWidth - 40) / 2);
+    const advice = doc.splitTextToSize(item.advice || 'No additional advice provided.', (pageWidth - 40) / 2);
+    doc.text(meds, 16, y + 18);
+    doc.text(advice, pageWidth / 2 + 4, y + 18);
+
+    y += 64;
+
+    doc.setDrawColor(209, 213, 219);
+    doc.line(14, y, pageWidth - 14, y);
+    y += 8;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 24, 39);
+    doc.text('Digital Signature', 14, y);
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(11);
+    doc.text(item.doctorSignature || item.doctorEmail || 'N/A', 14, y + 8);
+
+    if (item.doctorSignatureImage) {
+      try {
+        doc.addImage(item.doctorSignatureImage, 'PNG', pageWidth - 72, y - 10, 56, 22);
+      } catch {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.text('Signature image unavailable', pageWidth - 70, y + 4);
       }
-    });
+    }
 
     const safePatient = (item.patientEmail || 'patient').replace(/[^a-zA-Z0-9]/g, '_');
     doc.save(`prescription_${safePatient}_${item.id || 'record'}.pdf`);
@@ -141,7 +185,10 @@ export default function DoctorPrescriptions() {
             <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Diagnosis" value={prescriptionForm.diagnosis} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, diagnosis: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Medications" value={prescriptionForm.medications} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, medications: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Advice" value={prescriptionForm.advice} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, advice: e.target.value })} />
-            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Digital signature (e.g., Dr. John Doe, MBBS)" value={prescriptionForm.doctorSignature} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorSignature: e.target.value })} required />
+            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Typed signature (e.g., Dr. John Doe, MBBS)" value={prescriptionForm.doctorSignature} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorSignature: e.target.value })} />
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 text-sm text-violet-800">
+              Signature image is managed from Doctor Profile and will be added automatically to issued prescriptions and PDF.
+            </div>
             <input type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" value={prescriptionForm.followUpDate} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, followUpDate: e.target.value })} />
             <button type="submit" className="w-full inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
               <ClipboardPlus className="mr-2" size={16} /> Issue Prescription
@@ -175,6 +222,12 @@ export default function DoctorPrescriptions() {
                     <span className="font-semibold text-gray-900">Digital Signature: </span>
                     <span className="italic">{item.doctorSignature || item.doctorEmail}</span>
                   </p>
+
+                  {item.doctorSignatureImage && (
+                    <div className="mt-2 bg-violet-50 border border-violet-100 rounded-lg p-2 w-fit">
+                      <img src={item.doctorSignatureImage} alt="Stored doctor signature" className="h-12 object-contain" />
+                    </div>
+                  )}
 
                   <div className="mt-4">
                     <button

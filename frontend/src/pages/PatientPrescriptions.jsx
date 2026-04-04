@@ -92,6 +92,11 @@ const PatientPrescriptions = () => {
                                         <span className="font-bold text-gray-700">Doctor Signature: </span>
                                         <span className="italic">{rx.doctorSignature || rx.doctorEmail}</span>
                                     </p>
+                                    {rx.doctorSignatureImage && (
+                                        <div className="mt-3 bg-purple-50 border border-purple-100 rounded-lg p-2 w-fit">
+                                            <img src={rx.doctorSignatureImage} alt="Doctor signature" className="h-12 object-contain" />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -42,6 +42,9 @@ public class DigitalPrescription {
 
     private String doctorSignature;
 
+    @Column(columnDefinition = "TEXT")
+    private String doctorSignatureImage;
+
     private String followUpDate;
     private LocalDateTime issuedAt;
 }

@@ -15,6 +15,7 @@ const initialProfileState = {
   consultationFee: '',
   hospitalAffiliation: '',
   bio: '',
+  doctorSignatureImage: '',
 };
 
 export default function DoctorProfile() {
@@ -39,6 +40,7 @@ export default function DoctorProfile() {
         consultationFee: data.consultationFee || '',
         hospitalAffiliation: data.hospitalAffiliation || '',
         bio: data.bio || '',
+        doctorSignatureImage: data.doctorSignatureImage || '',
       });
     } catch (err) {
       setError(err.message || 'Failed to load doctor profile');
@@ -64,6 +66,47 @@ export default function DoctorProfile() {
     } catch (err) {
       setError(err.message || 'Failed to save doctor profile');
     }
+  };
+
+  const handleSignatureImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload a valid image file for digital signature.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 900;
+        const maxHeight = 300;
+        const ratio = Math.min(maxWidth / img.width, maxHeight / img.height, 1);
+        const width = Math.floor(img.width * ratio);
+        const height = Math.floor(img.height * ratio);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          setError('Unable to process signature image.');
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL('image/jpeg', 0.82);
+        setProfile((prev) => ({ ...prev, doctorSignatureImage: compressed }));
+        setError('');
+      };
+      img.onerror = () => setError('Unable to read signature image.');
+      img.src = String(reader.result);
+    };
+    reader.onerror = () => setError('Unable to read signature image.');
+    reader.readAsDataURL(file);
   };
 
   if (isLoading) {
@@ -145,6 +188,15 @@ export default function DoctorProfile() {
             <input className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="Consultation fee" value={profile.consultationFee} onChange={(e) => setProfile({ ...profile, consultationFee: e.target.value })} />
             <input className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none md:col-span-2" placeholder="Hospital affiliation" value={profile.hospitalAffiliation} onChange={(e) => setProfile({ ...profile, hospitalAffiliation: e.target.value })} />
             <textarea className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none md:col-span-2" rows="4" placeholder="Professional bio" value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} />
+            <div className="md:col-span-2 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
+              <p className="text-sm font-semibold text-indigo-800 mb-2">Digital Signature Image (For Prescriptions)</p>
+              <input type="file" accept="image/*" onChange={handleSignatureImageUpload} className="block w-full text-sm text-gray-700" />
+              {profile.doctorSignatureImage && (
+                <div className="mt-3 bg-white border border-indigo-100 rounded-lg p-2 w-fit">
+                  <img src={profile.doctorSignatureImage} alt="Doctor signature preview" className="h-16 object-contain" />
+                </div>
+              )}
+            </div>
             <div className="md:col-span-2 pt-1">
               <button type="submit" className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
                 <Save className="mr-2" size={16} /> Save Profile
