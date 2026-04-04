@@ -45,10 +45,10 @@ export default function DoctorDashboard() {
       to: '/doctor-appointments',
       action: 'Review Requests',
       icon: ClipboardCheck,
-      iconClasses: 'bg-amber-100 text-amber-700',
-      buttonClasses: 'bg-amber-600 hover:bg-amber-700',
+      iconClasses: 'bg-cyan-100 text-cyan-700',
+      buttonClasses: 'bg-cyan-600 hover:bg-cyan-700',
       locked: !isApproved,
-      cardAccent: 'border-amber-200',
+      cardAccent: 'border-cyan-200',
     },
     {
       title: 'Prescriptions',

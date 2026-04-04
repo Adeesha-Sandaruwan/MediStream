@@ -40,7 +40,7 @@ export default function DoctorAppointments() {
   const getStatusStyle = (status) => {
     if (status === 'ACCEPTED') return 'bg-emerald-100 text-emerald-700';
     if (status === 'REJECTED') return 'bg-red-100 text-red-700';
-    return 'bg-amber-100 text-amber-700';
+    return 'bg-cyan-100 text-cyan-700';
   };
 
   if (isLoading) {
@@ -65,9 +65,9 @@ export default function DoctorAppointments() {
         </Link>
       </div>
 
-      <div className="rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 text-white p-6 shadow-md">
+      <div className="rounded-2xl bg-gradient-to-r from-cyan-600 via-sky-600 to-indigo-700 text-white p-6 shadow-md">
         <h2 className="text-xl font-bold">Appointment Decision Center</h2>
-        <p className="text-orange-50 text-sm mt-1">Review patient requests and confirm clinical sessions with clear status tracking.</p>
+        <p className="text-cyan-50 text-sm mt-1">Review patient requests and confirm clinical sessions with clear status tracking.</p>
         <div className="flex flex-wrap gap-2 mt-4">
           <Link to="/doctor-profile" className="text-xs px-3 py-1 rounded-full bg-white/20 hover:bg-white/30">Profile</Link>
           <Link to="/doctor-availability" className="text-xs px-3 py-1 rounded-full bg-white/20 hover:bg-white/30">Availability</Link>
@@ -84,7 +84,7 @@ export default function DoctorAppointments() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <p className="font-bold text-gray-900 flex items-center">
-                    <CalendarDays className="mr-2 text-amber-600" size={18} />
+                    <CalendarDays className="mr-2 text-cyan-600" size={18} />
                     Appointment #{item.appointmentId}
                   </p>
                   <p className="text-sm text-gray-600 mt-1 flex items-center">
