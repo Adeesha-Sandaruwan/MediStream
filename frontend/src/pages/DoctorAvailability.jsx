@@ -5,7 +5,9 @@ import { useAuth } from '../context/AuthContext';
 import { createAvailabilitySlot, deleteAvailabilitySlot, getMyAvailability, updateAvailabilitySlot } from '../api/doctorApi';
 
 const initialAvailabilityState = {
+  scheduleType: 'WEEKLY',
   dayOfWeek: 'MONDAY',
+  specificDate: '',
   startTime: '09:00',
   endTime: '10:00',
   active: true,
@@ -40,8 +42,28 @@ export default function DoctorAvailability() {
   const handleCreateAvailability = async (e) => {
     e.preventDefault();
     setError('');
+    if (availabilityForm.startTime >= availabilityForm.endTime) {
+      setError('End time must be later than start time.');
+      return;
+    }
+
+    const payload = {
+      dayOfWeek: availabilityForm.scheduleType === 'DATE'
+        ? new Date(`${availabilityForm.specificDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
+        : availabilityForm.dayOfWeek,
+      specificDate: availabilityForm.scheduleType === 'DATE' ? availabilityForm.specificDate : null,
+      startTime: availabilityForm.startTime,
+      endTime: availabilityForm.endTime,
+      active: true,
+    };
+
+    if (availabilityForm.scheduleType === 'DATE' && !availabilityForm.specificDate) {
+      setError('Please select an upcoming date for date-based slots.');
+      return;
+    }
+
     try {
-      await createAvailabilitySlot(token, availabilityForm);
+      await createAvailabilitySlot(token, payload);
       setAvailabilityForm(initialAvailabilityState);
       await loadAvailability();
     } catch (err) {
@@ -63,7 +85,9 @@ export default function DoctorAvailability() {
     setError('');
     setEditingSlotId(slot.id);
     setEditForm({
+      scheduleType: slot.specificDate ? 'DATE' : 'WEEKLY',
       dayOfWeek: slot.dayOfWeek,
+      specificDate: slot.specificDate || '',
       startTime: slot.startTime?.slice(0, 5) || '09:00',
       endTime: slot.endTime?.slice(0, 5) || '10:00',
       active: Boolean(slot.active),
@@ -81,8 +105,24 @@ export default function DoctorAvailability() {
       setError('End time must be later than start time.');
       return;
     }
+
+    if (editForm.scheduleType === 'DATE' && !editForm.specificDate) {
+      setError('Please select an upcoming date for date-based slots.');
+      return;
+    }
+
+    const payload = {
+      dayOfWeek: editForm.scheduleType === 'DATE'
+        ? new Date(`${editForm.specificDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
+        : editForm.dayOfWeek,
+      specificDate: editForm.scheduleType === 'DATE' ? editForm.specificDate : null,
+      startTime: editForm.startTime,
+      endTime: editForm.endTime,
+      active: editForm.active,
+    };
+
     try {
-      await updateAvailabilitySlot(token, slotId, editForm);
+      await updateAvailabilitySlot(token, slotId, payload);
       setEditingSlotId(null);
       setEditForm(initialAvailabilityState);
       await loadAvailability();
@@ -129,11 +169,27 @@ export default function DoctorAvailability() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-1 h-fit">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Add New Slot</h2>
           <form onSubmit={handleCreateAvailability} className="space-y-3">
-            <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.dayOfWeek} onChange={(e) => setAvailabilityForm({ ...availabilityForm, dayOfWeek: e.target.value })}>
-            {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
+            <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.scheduleType} onChange={(e) => setAvailabilityForm({ ...availabilityForm, scheduleType: e.target.value })}>
+              <option value="WEEKLY">Weekly recurring slot</option>
+              <option value="DATE">Specific upcoming date</option>
             </select>
+
+            {availabilityForm.scheduleType === 'WEEKLY' ? (
+              <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.dayOfWeek} onChange={(e) => setAvailabilityForm({ ...availabilityForm, dayOfWeek: e.target.value })}>
+                {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="date"
+                min={new Date().toISOString().split('T')[0]}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                value={availabilityForm.specificDate}
+                onChange={(e) => setAvailabilityForm({ ...availabilityForm, specificDate: e.target.value })}
+              />
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.startTime} onChange={(e) => setAvailabilityForm({ ...availabilityForm, startTime: e.target.value })} />
               <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.endTime} onChange={(e) => setAvailabilityForm({ ...availabilityForm, endTime: e.target.value })} />
@@ -144,7 +200,7 @@ export default function DoctorAvailability() {
           </form>
 
           <div className="mt-5 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-sm text-indigo-800">
-            Patients can only see slots marked active in your doctor service.
+            You can publish recurring weekly slots or one-time upcoming date slots. Patients can only see active slots.
           </div>
         </div>
 
@@ -156,14 +212,28 @@ export default function DoctorAvailability() {
                 {editingSlotId === slot.id ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.dayOfWeek} onChange={(e) => setEditForm({ ...editForm, dayOfWeek: e.target.value })}>
-                        {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((d) => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.scheduleType} onChange={(e) => setEditForm({ ...editForm, scheduleType: e.target.value })}>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="DATE">Specific Date</option>
                       </select>
+                      {editForm.scheduleType === 'WEEKLY' ? (
+                        <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.dayOfWeek} onChange={(e) => setEditForm({ ...editForm, dayOfWeek: e.target.value })}>
+                          {['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="date"
+                          min={new Date().toISOString().split('T')[0]}
+                          className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none"
+                          value={editForm.specificDate}
+                          onChange={(e) => setEditForm({ ...editForm, specificDate: e.target.value })}
+                        />
+                      )}
                       <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.startTime} onChange={(e) => setEditForm({ ...editForm, startTime: e.target.value })} />
-                      <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.endTime} onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })} />
                     </div>
+                    <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.endTime} onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })} />
 
                     <label className="inline-flex items-center gap-2 text-sm text-gray-700">
                       <input
@@ -189,10 +259,17 @@ export default function DoctorAvailability() {
                     <div className="text-sm text-gray-700">
                       <div className="font-semibold text-gray-900 flex items-center mb-1">
                         <CalendarClock className="mr-2 text-indigo-600" size={16} />
-                        {slot.dayOfWeek}
+                        {slot.specificDate
+                          ? new Date(`${slot.specificDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+                          : slot.dayOfWeek}
                         <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-semibold ${slot.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                           {slot.active ? 'Active' : 'Inactive'}
                         </span>
+                        {slot.specificDate && (
+                          <span className="ml-2 text-xs px-2 py-0.5 rounded-full font-semibold bg-cyan-100 text-cyan-700">
+                            Date Slot
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center text-gray-600">
                         <Clock3 className="mr-2" size={14} />
