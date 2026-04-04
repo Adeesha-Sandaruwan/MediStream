@@ -37,5 +37,24 @@ public interface PatientServiceClient {
         public String phoneNumber;
         public String dateOfBirth;
         public String address;
+
+          // Profile Info
+        public String firstName;
+        public String lastName;
+        public String gender;
+        public String nationalId;
+        public String bloodGroup;
+
+        // Medical Info
+        public String allergies;
+        public String currentMedications;
+        public String chronicConditions;
+        public String pastSurgeries;
+        public String familyMedicalHistory;
+
+        // Emergency Contact
+        public String emergencyContactName;
+        public String emergencyContactRelationship;
+        public String emergencyContactPhone;
     }
 }
