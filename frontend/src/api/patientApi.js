@@ -87,14 +87,7 @@ export const getAllPatients = async (token) => {
 };
 
 export const getMyPrescriptionsAsPatient = async (token) => {
-    const base64Url = token.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-    }).join(''));
-    const patientEmail = JSON.parse(jsonPayload).sub;
-
-    const response = await fetch(`http://localhost:8084/api/doctors/prescriptions/patient?patientEmail=${patientEmail}`, {
+    const response = await fetch('http://localhost:8084/api/doctors/prescriptions/patient/me', {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${token}`,

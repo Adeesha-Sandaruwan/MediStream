@@ -16,5 +16,6 @@ public class AvailabilitySlotDto {
     private LocalDate specificDate;
     private String startTime;
     private String endTime;
+    private String slotType;
     private Boolean active;
 }

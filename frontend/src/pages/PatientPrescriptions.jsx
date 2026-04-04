@@ -88,6 +88,10 @@ const PatientPrescriptions = () => {
                                         <Activity className="mr-2" size={16} /> Diagnosis
                                     </h4>
                                     <p className="text-lg font-bold text-gray-900">{rx.diagnosis}</p>
+                                    <p className="text-sm text-gray-600 mt-2">
+                                        <span className="font-bold text-gray-700">Doctor Signature: </span>
+                                        <span className="italic">{rx.doctorSignature || rx.doctorEmail}</span>
+                                    </p>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

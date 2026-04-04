@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardPlus, Video, Pill, CalendarDays, UserRound } from 'lucide-react';
+import { ClipboardPlus, Video, Pill, CalendarDays, UserRound, Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 import { getMyPrescriptions, issuePrescription } from '../api/doctorApi';
 
@@ -10,6 +11,7 @@ const initialPrescriptionState = {
   diagnosis: '',
   medications: '',
   advice: '',
+  doctorSignature: '',
   followUpDate: '',
 };
 
@@ -17,6 +19,7 @@ export default function DoctorPrescriptions() {
   const { token } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [prescriptionForm, setPrescriptionForm] = useState(initialPrescriptionState);
   const [prescriptions, setPrescriptions] = useState([]);
 
@@ -40,16 +43,58 @@ export default function DoctorPrescriptions() {
   const handleIssuePrescription = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     try {
-      await issuePrescription(token, {
+      const created = await issuePrescription(token, {
         ...prescriptionForm,
         appointmentId: prescriptionForm.appointmentId ? Number(prescriptionForm.appointmentId) : null,
       });
+      setPrescriptions((prev) => [created, ...prev]);
       setPrescriptionForm(initialPrescriptionState);
-      await loadPrescriptions();
+      setSuccess('Prescription issued and auto-saved to patient history.');
     } catch (err) {
       setError(err.message || 'Failed to issue prescription');
     }
+  };
+
+  const handleDownloadPrescriptionPdf = (item) => {
+    const doc = new jsPDF();
+    const issuedDate = item.issuedAt ? new Date(item.issuedAt).toLocaleString() : 'N/A';
+    const lines = [
+      'Digital Prescription',
+      '',
+      `Doctor: ${item.doctorEmail || 'N/A'}`,
+      `Patient: ${item.patientEmail || 'N/A'}`,
+      `Issued At: ${issuedDate}`,
+      `Appointment ID: ${item.appointmentId || 'N/A'}`,
+      `Follow-up Date: ${item.followUpDate || 'N/A'}`,
+      '',
+      `Diagnosis: ${item.diagnosis || ''}`,
+      '',
+      'Medications:',
+      item.medications || '',
+      '',
+      'Advice:',
+      item.advice || 'No additional advice provided.',
+      '',
+      `Digital Signature: ${item.doctorSignature || item.doctorEmail || 'N/A'}`,
+    ];
+
+    let y = 20;
+    lines.forEach((line, index) => {
+      const fontSize = index === 0 ? 16 : 11;
+      doc.setFontSize(fontSize);
+      const split = doc.splitTextToSize(line, 180);
+      doc.text(split, 15, y);
+      y += split.length * 6;
+      if (y > 275) {
+        doc.addPage();
+        y = 20;
+      }
+    });
+
+    const safePatient = (item.patientEmail || 'patient').replace(/[^a-zA-Z0-9]/g, '_');
+    doc.save(`prescription_${safePatient}_${item.id || 'record'}.pdf`);
   };
 
   if (isLoading) {
@@ -85,6 +130,7 @@ export default function DoctorPrescriptions() {
       </div>
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error}</div>}
+      {success && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl">{success}</div>}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-1 h-fit">
@@ -95,6 +141,7 @@ export default function DoctorPrescriptions() {
             <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Diagnosis" value={prescriptionForm.diagnosis} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, diagnosis: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Medications" value={prescriptionForm.medications} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, medications: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Advice" value={prescriptionForm.advice} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, advice: e.target.value })} />
+            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Digital signature (e.g., Dr. John Doe, MBBS)" value={prescriptionForm.doctorSignature} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorSignature: e.target.value })} required />
             <input type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" value={prescriptionForm.followUpDate} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, followUpDate: e.target.value })} />
             <button type="submit" className="w-full inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
               <ClipboardPlus className="mr-2" size={16} /> Issue Prescription
@@ -123,6 +170,20 @@ export default function DoctorPrescriptions() {
                     <Pill className="mr-2 mt-0.5 text-violet-600 shrink-0" size={16} />
                     {item.diagnosis}
                   </p>
+
+                  <p className="mt-3 text-sm text-gray-700">
+                    <span className="font-semibold text-gray-900">Digital Signature: </span>
+                    <span className="italic">{item.doctorSignature || item.doctorEmail}</span>
+                  </p>
+
+                  <div className="mt-4">
+                    <button
+                      onClick={() => handleDownloadPrescriptionPdf(item)}
+                      className="inline-flex items-center px-3 py-2 rounded-lg bg-violet-100 text-violet-700 hover:bg-violet-200 font-semibold text-sm transition-colors"
+                    >
+                      <Download className="mr-2" size={14} /> Download PDF
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

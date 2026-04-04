@@ -39,5 +39,8 @@ public class AvailabilitySlot {
     @Column(nullable = false)
     private String endTime;
 
+    @Column
+    private String slotType;
+
     private Boolean active;
 }

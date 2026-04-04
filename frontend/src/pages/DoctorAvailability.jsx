@@ -6,6 +6,7 @@ import { createAvailabilitySlot, deleteAvailabilitySlot, getMyAvailability, upda
 
 const initialAvailabilityState = {
   scheduleType: 'WEEKLY',
+  slotType: 'CONSULTATION',
   dayOfWeek: 'MONDAY',
   specificDate: '',
   startTime: '09:00',
@@ -47,6 +48,11 @@ export default function DoctorAvailability() {
       return;
     }
 
+    if (availabilityForm.scheduleType === 'DATE' && !availabilityForm.specificDate) {
+      setError('Please select an upcoming date for date-based slots.');
+      return;
+    }
+
     const payload = {
       dayOfWeek: availabilityForm.scheduleType === 'DATE'
         ? new Date(`${availabilityForm.specificDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase()
@@ -54,13 +60,9 @@ export default function DoctorAvailability() {
       specificDate: availabilityForm.scheduleType === 'DATE' ? availabilityForm.specificDate : null,
       startTime: availabilityForm.startTime,
       endTime: availabilityForm.endTime,
-      active: true,
+      slotType: availabilityForm.slotType,
+      active: availabilityForm.slotType === 'LEAVE' ? false : true,
     };
-
-    if (availabilityForm.scheduleType === 'DATE' && !availabilityForm.specificDate) {
-      setError('Please select an upcoming date for date-based slots.');
-      return;
-    }
 
     try {
       await createAvailabilitySlot(token, payload);
@@ -86,6 +88,7 @@ export default function DoctorAvailability() {
     setEditingSlotId(slot.id);
     setEditForm({
       scheduleType: slot.specificDate ? 'DATE' : 'WEEKLY',
+      slotType: slot.slotType || 'CONSULTATION',
       dayOfWeek: slot.dayOfWeek,
       specificDate: slot.specificDate || '',
       startTime: slot.startTime?.slice(0, 5) || '09:00',
@@ -118,7 +121,8 @@ export default function DoctorAvailability() {
       specificDate: editForm.scheduleType === 'DATE' ? editForm.specificDate : null,
       startTime: editForm.startTime,
       endTime: editForm.endTime,
-      active: editForm.active,
+      slotType: editForm.slotType,
+      active: editForm.slotType === 'LEAVE' ? false : editForm.active,
     };
 
     try {
@@ -169,6 +173,11 @@ export default function DoctorAvailability() {
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-1 h-fit">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Add New Slot</h2>
           <form onSubmit={handleCreateAvailability} className="space-y-3">
+            <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.slotType} onChange={(e) => setAvailabilityForm({ ...availabilityForm, slotType: e.target.value })}>
+              <option value="CONSULTATION">Consultation Slot</option>
+              <option value="LEAVE">Time-off / Leave</option>
+            </select>
+
             <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={availabilityForm.scheduleType} onChange={(e) => setAvailabilityForm({ ...availabilityForm, scheduleType: e.target.value })}>
               <option value="WEEKLY">Weekly recurring slot</option>
               <option value="DATE">Specific upcoming date</option>
@@ -200,7 +209,7 @@ export default function DoctorAvailability() {
           </form>
 
           <div className="mt-5 rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-sm text-indigo-800">
-            You can publish recurring weekly slots or one-time upcoming date slots. Patients can only see active slots.
+            Add consultation availability or mark leave for weekly/date slots. Leave slots are hidden from patients automatically.
           </div>
         </div>
 
@@ -212,6 +221,10 @@ export default function DoctorAvailability() {
                 {editingSlotId === slot.id ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.slotType} onChange={(e) => setEditForm({ ...editForm, slotType: e.target.value })}>
+                        <option value="CONSULTATION">Consultation</option>
+                        <option value="LEAVE">Leave</option>
+                      </select>
                       <select className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.scheduleType} onChange={(e) => setEditForm({ ...editForm, scheduleType: e.target.value })}>
                         <option value="WEEKLY">Weekly</option>
                         <option value="DATE">Specific Date</option>
@@ -235,15 +248,17 @@ export default function DoctorAvailability() {
                     </div>
                     <input type="time" className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" value={editForm.endTime} onChange={(e) => setEditForm({ ...editForm, endTime: e.target.value })} />
 
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                      <input
-                        type="checkbox"
-                        checked={editForm.active}
-                        onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
-                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      Visible to patients (Active)
-                    </label>
+                    {editForm.slotType === 'CONSULTATION' && (
+                      <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={editForm.active}
+                          onChange={(e) => setEditForm({ ...editForm, active: e.target.checked })}
+                          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        Visible to patients (Active)
+                      </label>
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                       <button onClick={() => handleUpdateAvailability(slot.id)} className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg font-semibold transition-colors">
@@ -264,6 +279,9 @@ export default function DoctorAvailability() {
                           : slot.dayOfWeek}
                         <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-semibold ${slot.active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
                           {slot.active ? 'Active' : 'Inactive'}
+                        </span>
+                        <span className={`ml-2 text-xs px-2 py-0.5 rounded-full font-semibold ${(slot.slotType || 'CONSULTATION') === 'LEAVE' ? 'bg-rose-100 text-rose-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                          {(slot.slotType || 'CONSULTATION') === 'LEAVE' ? 'Leave' : 'Consultation'}
                         </span>
                         {slot.specificDate && (
                           <span className="ml-2 text-xs px-2 py-0.5 rounded-full font-semibold bg-cyan-100 text-cyan-700">
