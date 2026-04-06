@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getAllDoctors } from '../api/doctorApi';
 import {
@@ -171,6 +172,8 @@ function defaultMeetingDatetimeLocal() {
 
 export default function Telemedicine() {
   const { token, role, email } = useAuth();
+
+  const dashboardPath = role === 'DOCTOR' ? '/doctor-dashboard' : '/patient-dashboard';
 
   const [session, setSession] = useState(null);
   const [joinInput, setJoinInput] = useState('');
@@ -651,7 +654,13 @@ export default function Telemedicine() {
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+          <Link
+            to={dashboardPath}
+            className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+          >
+            &larr; Back to Dashboard
+          </Link>
+          <h1 className="mt-3 flex items-center gap-2 text-3xl font-bold text-gray-900">
             <Video className="h-8 w-8 text-emerald-600" />
             Telemedicine
           </h1>
