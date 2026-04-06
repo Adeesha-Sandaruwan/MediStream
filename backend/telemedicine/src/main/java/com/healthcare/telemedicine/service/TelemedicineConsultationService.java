@@ -8,6 +8,8 @@ import com.healthcare.telemedicine.entity.TelemedicineIntakeRequest;
 import com.healthcare.telemedicine.repository.TelemedicineConsultationRepository;
 import com.healthcare.telemedicine.repository.TelemedicineIntakeRequestRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,8 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class TelemedicineConsultationService {
+
+    private static final Logger LOG = LoggerFactory.getLogger(TelemedicineConsultationService.class);
 
     private static final int MIN_DURATION_MIN = 15;
     private static final int MAX_DURATION_MIN = 480;
@@ -115,15 +119,24 @@ public class TelemedicineConsultationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Intake request not found"));
 
         String doctor = doctorEmail.trim().toLowerCase();
-        System.out.println("[Telemedicine] scheduleFromIntake called: authDoctor=" + doctor + ", intakeId=" + intakeId
-                + ", intakeDoctor=" + intake.getDoctorEmail() + ", status=" + intake.getStatus());
+        LOG.debug("scheduleFromIntake called authDoctor={} intakeId={} intakeDoctor={} status={}",
+                doctor,
+                intakeId,
+                intake.getDoctorEmail(),
+                intake.getStatus());
         if (!intake.getDoctorEmail().equalsIgnoreCase(doctor)) {
-            System.out.println("[Telemedicine] scheduleFromIntake forbidden: authDoctor does not match intake doctor");
+            LOG.warn("scheduleFromIntake forbidden authDoctor={} intakeDoctor={} intakeId={}",
+                    doctor,
+                    intake.getDoctorEmail(),
+                    intakeId);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This intake is assigned to another doctor");
         }
         if (intake.getStatus() != IntakeRequestStatus.PENDING_REVIEW) {
-            System.out.println("[Telemedicine] scheduleFromIntake bad request: status=" + intake.getStatus());
+            LOG.warn("scheduleFromIntake rejected intakeId={} status={}", intakeId, intake.getStatus());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This intake is no longer awaiting scheduling");
+        }
+        if (hasLinkedConsultation(intake)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This intake already has a booked visit");
         }
 
         String startRaw = trimToNull(request.getScheduledStartAt());
@@ -154,6 +167,9 @@ public class TelemedicineConsultationService {
         if (durationMin > MAX_DURATION_MIN) {
             durationMin = MAX_DURATION_MIN;
         }
+        Instant scheduledEnd = scheduledStart.plus(durationMin, ChronoUnit.MINUTES);
+
+        assertNoScheduleConflict(doctor, intake.getPatientEmail(), scheduledStart, scheduledEnd);
 
         String clinicalSummary = buildSummaryFromIntake(intake);
         String doctorMsg = trimToNull(request.getDoctorMessage());
@@ -178,6 +194,47 @@ public class TelemedicineConsultationService {
         TelemedicineConsultation fresh =
                 repository.findById(c.getId()).orElse(c);
         return toResponse(fresh);
+    }
+
+    private boolean hasLinkedConsultation(TelemedicineIntakeRequest intake) {
+        if (intake.getConsultationId() != null) {
+            return true;
+        }
+        return intake.getId() != null && repository.findByIntakeRequestId(intake.getId()).isPresent();
+    }
+
+    private void assertNoScheduleConflict(
+            String doctorEmail,
+            String patientEmail,
+            Instant candidateStart,
+            Instant candidateEnd
+    ) {
+        List<ConsultationStatus> activeStatuses = List.of(ConsultationStatus.SCHEDULED, ConsultationStatus.LIVE);
+        boolean doctorConflict = repository.existsDoctorScheduleOverlap(
+                doctorEmail,
+                activeStatuses,
+                candidateStart,
+                candidateEnd
+        );
+        if (doctorConflict) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Doctor already has another consultation during this time window"
+            );
+        }
+
+        boolean patientConflict = repository.existsPatientScheduleOverlap(
+                patientEmail,
+                activeStatuses,
+                candidateStart,
+                candidateEnd
+        );
+        if (patientConflict) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Patient already has another consultation during this time window"
+            );
+        }
     }
 
     /* ---------- Consultations (video visits) ---------- */
