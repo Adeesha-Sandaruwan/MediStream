@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -121,6 +121,27 @@ const AdminDashboard = () => {
 
     const pendingCount = users.filter(u => u.role === 'DOCTOR' && u.verificationStatus === 'PENDING').length;
 
+    const roleStats = useMemo(() => {
+        return users.reduce((acc, user) => {
+            acc[user.role] = (acc[user.role] || 0) + 1;
+            return acc;
+        }, { PATIENT: 0, DOCTOR: 0, ADMIN: 0 });
+    }, [users]);
+
+    const topSpecialties = useMemo(() => {
+        const stats = doctorRecords.reduce((acc, doc) => {
+            const spec = doc.specialty || 'Unspecified';
+            acc[spec] = (acc[spec] || 0) + 1;
+            return acc;
+        }, {});
+        return Object.entries(stats).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    }, [doctorRecords]);
+
+    const patientDoctorRatio = useMemo(() => {
+        if (roleStats.DOCTOR === 0) return roleStats.PATIENT;
+        return (roleStats.PATIENT / roleStats.DOCTOR).toFixed(1);
+    }, [roleStats]);
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
             <div className="flex items-center justify-between mb-8">
@@ -158,6 +179,76 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {!isLoading && users.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center mb-6">
+                            <PieChart className="text-indigo-600 mr-3" size={24} />
+                            <h2 className="text-xl font-bold text-gray-800">Platform Demographics</h2>
+                        </div>
+                        <div className="space-y-4">
+                            <div>
+                                <div className="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                                    <span>Patients</span>
+                                    <span>{roleStats.PATIENT} ({Math.round((roleStats.PATIENT / users.length) * 100) || 0}%)</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                                    <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${(roleStats.PATIENT / users.length) * 100}%` }}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                                    <span>Doctors</span>
+                                    <span>{roleStats.DOCTOR} ({Math.round((roleStats.DOCTOR / users.length) * 100) || 0}%)</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                                    <div className="bg-blue-500 h-2.5 rounded-full" style={{ width: `${(roleStats.DOCTOR / users.length) * 100}%` }}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-sm font-bold text-gray-700 mb-1">
+                                    <span>Administrators</span>
+                                    <span>{roleStats.ADMIN} ({Math.round((roleStats.ADMIN / users.length) * 100) || 0}%)</span>
+                                </div>
+                                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                                    <div className="bg-purple-500 h-2.5 rounded-full" style={{ width: `${(roleStats.ADMIN / users.length) * 100}%` }}></div>
+                                </div>
+                            </div>
+                            <div className="pt-4 mt-2 border-t border-gray-100">
+                                <p className="text-sm text-gray-500 font-medium">Network Ratio: <span className="font-bold text-indigo-700">{patientDoctorRatio} Patients</span> per Doctor</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                        <div className="flex items-center mb-6">
+                            <BarChart3 className="text-indigo-600 mr-3" size={24} />
+                            <h2 className="text-xl font-bold text-gray-800">Top Medical Specialties</h2>
+                        </div>
+                        {topSpecialties.length > 0 ? (
+                            <div className="space-y-4">
+                                {topSpecialties.map(([specialty, count], index) => (
+                                    <div key={index} className="flex items-center justify-between">
+                                        <div className="flex items-center">
+                                            <div className="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold mr-3 text-sm">
+                                                {index + 1}
+                                            </div>
+                                            <span className="font-bold text-gray-700 truncate max-w-[200px]">{specialty}</span>
+                                        </div>
+                                        <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold">{count} Providers</span>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-gray-400 py-6">
+                                <Activity size={32} className="mb-2 opacity-50" />
+                                <p className="text-sm font-medium">No verified specialties found.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-max">
@@ -176,7 +267,6 @@ const AdminDashboard = () => {
                                 <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-bold text-gray-900">{user.email}</td>
                                     
-                                    {/* ROLES ARE NOW READ-ONLY */}
                                     <td className="p-4">
                                         <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                                             user.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 
@@ -189,7 +279,6 @@ const AdminDashboard = () => {
 
                                     <td className="p-4">
                                         <div className="flex items-center">
-                                            {/* PATIENTS ARE ALWAYS ACTIVE, DOCTORS CAN BE CHANGED */}
                                             {user.role === 'DOCTOR' ? (
                                                 <>
                                                     {getStatusIcon(user.verificationStatus || 'PENDING')}
@@ -215,7 +304,6 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            {/* Create Account Modal */}
             {showModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4 backdrop-blur-sm">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -249,7 +337,6 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {/* Comprehensive Audit Modal */}
             {selectedAudit && (
                 <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -261,7 +348,6 @@ const AdminDashboard = () => {
                         </div>
                         
                         <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-white">
-                            {/* --- PATIENT AUDIT VIEW --- */}
                             {selectedAudit.type === 'PATIENT' && (
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -319,7 +405,6 @@ const AdminDashboard = () => {
                                 </>
                             )}
 
-                            {/* --- DOCTOR AUDIT VIEW --- */}
                             {selectedAudit.type === 'DOCTOR' && (
                                 <>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
