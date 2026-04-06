@@ -73,6 +73,23 @@ function normalizePendingConsultationDto(d) {
   };
 }
 
+function normalizeDoctorPastMeetingDto(d) {
+  if (d == null || typeof d !== 'object') return d;
+  return {
+    ...d,
+    id: d.id,
+    intakeRequestId: d.intakeRequestId ?? d.intake_request_id,
+    patientEmail: d.patientEmail ?? d.patient_email,
+    roomId: d.roomId ?? d.room_id ?? d.publicRoomId ?? d.public_room_id,
+    status: d.status,
+    consultationDetails: d.consultationDetails ?? d.consultation_details,
+    scheduledStartAt: d.scheduledStartAt ?? d.scheduled_start_at,
+    scheduledEndAt: d.scheduledEndAt ?? d.scheduled_end_at,
+    startedAt: d.startedAt ?? d.started_at,
+    endedAt: d.endedAt ?? d.ended_at,
+  };
+}
+
 /** @param {string} token @param {object} body PatientIntakeSubmitRequest */
 export const submitTelemedicineIntake = async (token, body) => {
   const response = await axios.post(`${API_BASE}/intake`, body, { headers: authHeaders(token) });
@@ -142,6 +159,14 @@ export const getDoctorSchedules = async (token) => {
   });
   const arr = response.data;
   return Array.isArray(arr) ? arr.map(normalizePendingConsultationDto) : arr;
+};
+
+export const getDoctorPastMeetings = async (token) => {
+  const response = await axios.get(`${API_BASE}/doctor/meetings/past`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const arr = response.data;
+  return Array.isArray(arr) ? arr.map(normalizeDoctorPastMeetingDto) : arr;
 };
 
 export const startTelemedicineSession = async (token, roomId) => {
