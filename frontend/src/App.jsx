@@ -7,6 +7,7 @@ import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
 import Appointments from './components/appointments';
+import Notifications from './components/Notifications';
 
 const DoctorDashboard = () => (
     <div className="max-w-7xl mx-auto px-4 py-10">
@@ -77,6 +78,8 @@ export default function App() {
                 <Route path="/auth" element={<Auth />} />
 
                  <Route path="/appointments" element={<Appointments />}/>
+
+                   <Route path="/notifications" element={<Notifications />}/>
                 
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 

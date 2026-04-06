@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import AppointmentTable from '../components/appointmentTable';
 import AppointmentForm from '../components/appointmentForm';
+import image from '../assets/land.png';
 
 const API_BASE_URL = 'http://localhost:8083/api/v1/appointments';
 
@@ -136,6 +137,7 @@ const Appointments = () => {
   }
 
   return (
+   
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-gray-900">Appointment Management</h1>
