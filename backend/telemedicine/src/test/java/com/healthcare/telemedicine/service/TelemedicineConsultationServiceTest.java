@@ -1,6 +1,8 @@
 package com.healthcare.telemedicine.service;
 
 import com.healthcare.telemedicine.dto.ScheduleFromIntakeRequest;
+import com.healthcare.telemedicine.entity.ConsultationStatus;
+import com.healthcare.telemedicine.entity.TelemedicineConsultation;
 import com.healthcare.telemedicine.entity.IntakeRequestStatus;
 import com.healthcare.telemedicine.entity.TelemedicineIntakeRequest;
 import com.healthcare.telemedicine.repository.TelemedicineConsultationRepository;
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -93,6 +96,37 @@ class TelemedicineConsultationServiceTest {
         );
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void listDoctorPastMeetingsReturnsEssentialHistoryDetails() {
+        Instant start = Instant.parse("2026-04-01T10:00:00Z");
+        Instant end = start.plus(30, ChronoUnit.MINUTES);
+
+        TelemedicineConsultation consultation = TelemedicineConsultation.builder()
+                .id(55L)
+                .intakeRequestId(15L)
+                .patientEmail("patient@example.com")
+                .publicRoomId("medistream-room")
+                .status(ConsultationStatus.ENDED)
+                .symptoms("Follow-up for mild fever")
+                .scheduledStartAt(start)
+                .scheduledEndAt(end)
+                .startedAt(start)
+                .endedAt(end)
+                .build();
+
+        when(consultationRepository.findByDoctorEmailIgnoreCaseAndStatusInOrderByScheduledStartAtDesc(
+                "doctor@example.com",
+                List.of(ConsultationStatus.ENDED)
+        )).thenReturn(List.of(consultation));
+
+        var result = service.listDoctorPastMeetings("doctor@example.com");
+
+        assertEquals(1, result.size());
+        assertEquals("patient@example.com", result.get(0).patientEmail());
+        assertEquals(start, result.get(0).scheduledStartAt());
+        assertEquals(end, result.get(0).endedAt());
     }
 }
 

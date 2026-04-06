@@ -266,6 +266,17 @@ public class TelemedicineConsultationService {
                 .toList();
     }
 
+    public List<DoctorPastMeetingDto> listDoctorPastMeetings(String doctorEmail) {
+        String email = doctorEmail.trim().toLowerCase();
+        return repository.findByDoctorEmailIgnoreCaseAndStatusInOrderByScheduledStartAtDesc(
+                        email,
+                        List.of(ConsultationStatus.ENDED)
+                )
+                .stream()
+                .map(this::toDoctorPastMeetingDto)
+                .toList();
+    }
+
     @Transactional
     public SessionResponse start(String actorEmail, String publicRoomId) {
         String actor = actorEmail.trim().toLowerCase();
@@ -470,6 +481,21 @@ public class TelemedicineConsultationService {
                 c.getCreatedAt(),
                 c.getScheduledStartAt(),
                 c.getScheduledEndAt()
+        );
+    }
+
+    private DoctorPastMeetingDto toDoctorPastMeetingDto(TelemedicineConsultation c) {
+        return new DoctorPastMeetingDto(
+                c.getId(),
+                c.getIntakeRequestId(),
+                c.getPatientEmail(),
+                c.getPublicRoomId(),
+                c.getStatus().name(),
+                c.getSymptoms(),
+                c.getScheduledStartAt(),
+                c.getScheduledEndAt(),
+                c.getStartedAt(),
+                c.getEndedAt()
         );
     }
 
