@@ -204,6 +204,7 @@ export default function Telemedicine() {
   const [doctorPastMeetings, setDoctorPastMeetings] = useState([]);
   const [doctorPastLoading, setDoctorPastLoading] = useState(false);
   const [doctorPastError, setDoctorPastError] = useState('');
+  const [doctorMeetingsTab, setDoctorMeetingsTab] = useState('UPCOMING');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1236,91 +1237,119 @@ export default function Telemedicine() {
         </>
       )}
 
-      {role === 'DOCTOR' && doctorSchedules.length > 0 && (
-        <div className="mt-8 rounded-xl border border-gray-100 bg-white p-6 shadow-md">
-          <h3 className="font-semibold text-gray-900">Upcoming / live video visits</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            {doctorSchedules.map((s) => {
-              const canStart = isWithinMeetingWindow(s, nowTick);
-              const before = isBeforeWindow(s, nowTick);
-              const hasRoom = Boolean(s.roomUrl || s.roomId || s.publicRoomId);
-              return (
-                <li
-                  key={s.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2"
-                >
-                  <div className="flex flex-col gap-1">
-                    <span className="text-gray-800">{s.patientEmail}</span>
-                    {s.intakeRequestId != null && (
-                      <span className="text-xs text-gray-500">Intake #{s.intakeRequestId}</span>
-                    )}
-                    <span className="text-gray-600">{formatLocal(s.scheduledStartAt)}</span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={
-                        s.status === 'LIVE'
-                          ? 'font-medium text-emerald-700'
-                          : 'rounded bg-amber-100 px-2 py-0.5 text-amber-900'
-                      }
-                    >
-                      {s.status}
-                    </span>
-                    <button
-                      type="button"
-                      disabled={loading || !hasRoom || !canStart}
-                      onClick={() => handleDoctorJoinSchedule(s)}
-                      className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-45"
-                    >
-                      {!hasRoom
-                        ? 'No room yet'
-                        : before
-                        ? 'Opens at scheduled time'
-                        : canStart
-                        ? 'Join session'
-                        : 'Outside window'}
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
       {role === 'DOCTOR' && (
         <div className="mt-8 rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/30 to-emerald-50/40 p-6 shadow-md">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="flex items-center gap-2 font-semibold text-gray-900">
                 <History className="h-5 w-5 text-indigo-600" />
-                Past telemedicine meetings
+                Doctor meetings
               </h3>
-              <p className="mt-1 text-sm text-gray-600">Review completed consultation windows and patient notes.</p>
+              <p className="mt-1 text-sm text-gray-600">Switch tabs between upcoming visits and past consultation history.</p>
             </div>
-            <span className="rounded-full border border-gray-200 bg-white/80 px-3 py-1 text-xs font-semibold text-gray-700">
-              {doctorPastMeetings.length} records
-            </span>
+            <div className="rounded-xl border border-gray-200 bg-white/90 p-1 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setDoctorMeetingsTab('UPCOMING')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  doctorMeetingsTab === 'UPCOMING'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Upcoming / live ({doctorSchedules.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDoctorMeetingsTab('PAST')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  doctorMeetingsTab === 'PAST'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                Past meetings ({doctorPastMeetings.length})
+              </button>
+            </div>
           </div>
 
-          {doctorPastError && (
-            <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{doctorPastError}</p>
+          {doctorMeetingsTab === 'UPCOMING' && (
+            <>
+              {!doctorSchedules.length ? (
+                <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-sm text-gray-600">
+                  No upcoming/live meetings yet. Schedule from patient requests to see them here.
+                </div>
+              ) : (
+                <ul className="mt-5 space-y-2 text-sm">
+                  {doctorSchedules.map((s) => {
+                    const canStart = isWithinMeetingWindow(s, nowTick);
+                    const before = isBeforeWindow(s, nowTick);
+                    const hasRoom = Boolean(s.roomUrl || s.roomId || s.publicRoomId);
+                    return (
+                      <li
+                        key={s.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 bg-white/90 px-3 py-2"
+                      >
+                        <div className="flex flex-col gap-1">
+                          <span className="text-gray-800">{s.patientEmail}</span>
+                          {s.intakeRequestId != null && (
+                            <span className="text-xs text-gray-500">Intake #{s.intakeRequestId}</span>
+                          )}
+                          <span className="text-gray-600">{formatLocal(s.scheduledStartAt)}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={
+                              s.status === 'LIVE'
+                                ? 'font-medium text-emerald-700'
+                                : 'rounded bg-amber-100 px-2 py-0.5 text-amber-900'
+                            }
+                          >
+                            {s.status}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={loading || !hasRoom || !canStart}
+                            onClick={() => handleDoctorJoinSchedule(s)}
+                            className="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-45"
+                          >
+                            {!hasRoom
+                              ? 'No room yet'
+                              : before
+                              ? 'Opens at scheduled time'
+                              : canStart
+                              ? 'Join session'
+                              : 'Outside window'}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </>
           )}
 
-          {doctorPastLoading && !doctorPastMeetings.length && (
-            <div className="mt-6 flex items-center gap-2 text-sm text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading past meetings...
-            </div>
-          )}
+          {doctorMeetingsTab === 'PAST' && (
+            <>
+              {doctorPastError && (
+                <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{doctorPastError}</p>
+              )}
 
-          {!doctorPastLoading && !doctorPastMeetingsSorted.length && !doctorPastError && (
-            <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-sm text-gray-600">
-              No past meetings yet. Completed sessions will appear here automatically.
-            </div>
-          )}
+              {doctorPastLoading && !doctorPastMeetings.length && (
+                <div className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading past meetings...
+                </div>
+              )}
 
-          {doctorPastMeetingsSorted.length > 0 && (
+              {!doctorPastLoading && !doctorPastMeetingsSorted.length && !doctorPastError && (
+                <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-sm text-gray-600">
+                  No past meetings yet. Completed sessions will appear here automatically.
+                </div>
+              )}
+
+              {doctorPastMeetingsSorted.length > 0 && (
             <ul className="mt-5 space-y-3">
               {doctorPastMeetingsSorted.map((meeting) => {
                 const startAt = meeting.startedAt ?? meeting.scheduledStartAt;
@@ -1380,6 +1409,8 @@ export default function Telemedicine() {
                 );
               })}
             </ul>
+              )}
+            </>
           )}
         </div>
       )}
