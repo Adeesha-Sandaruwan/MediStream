@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart, BellRing, AlertTriangle, Info } from 'lucide-react';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -142,6 +142,64 @@ const AdminDashboard = () => {
         return (roleStats.PATIENT / roleStats.DOCTOR).toFixed(1);
     }, [roleStats]);
 
+    const systemAlerts = useMemo(() => {
+        const alerts = [];
+        
+        const pendingDoctors = users.filter(u => u.role === 'DOCTOR' && u.verificationStatus === 'PENDING');
+        if (pendingDoctors.length > 0) {
+            alerts.push({
+                id: 'pending',
+                type: 'WARNING',
+                icon: <AlertTriangle size={20} className="text-yellow-600" />,
+                bg: 'bg-yellow-50',
+                border: 'border-yellow-200',
+                title: 'Pending Verifications',
+                message: `${pendingDoctors.length} doctor account(s) await credential review.`
+            });
+        }
+
+        const suspendedUsers = users.filter(u => u.verificationStatus === 'SUSPENDED');
+        if (suspendedUsers.length > 0) {
+            alerts.push({
+                id: 'suspended',
+                type: 'CRITICAL',
+                icon: <ShieldAlert size={20} className="text-red-600" />,
+                bg: 'bg-red-50',
+                border: 'border-red-200',
+                title: 'Suspended Accounts',
+                message: `${suspendedUsers.length} account(s) are currently locked out of the platform.`
+            });
+        }
+
+        const patientEmails = new Set(patientRecords.map(p => p.email));
+        const incompletePatients = users.filter(u => u.role === 'PATIENT' && !patientEmails.has(u.email));
+        if (incompletePatients.length > 0) {
+            alerts.push({
+                id: 'incomplete',
+                type: 'INFO',
+                icon: <Info size={20} className="text-blue-600" />,
+                bg: 'bg-blue-50',
+                border: 'border-blue-200',
+                title: 'Incomplete Patient Profiles',
+                message: `${incompletePatients.length} patient(s) registered but have not setup medical profiles.`
+            });
+        }
+
+        if (alerts.length === 0) {
+            alerts.push({
+                id: 'clear',
+                type: 'SUCCESS',
+                icon: <CheckCircle size={20} className="text-green-600" />,
+                bg: 'bg-green-50',
+                border: 'border-green-200',
+                title: 'System Clear',
+                message: 'No pending security operations or alerts at this time.'
+            });
+        }
+
+        return alerts;
+    }, [users, patientRecords]);
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
             <div className="flex items-center justify-between mb-8">
@@ -180,8 +238,8 @@ const AdminDashboard = () => {
             </div>
 
             {!isLoading && users.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-1">
                         <div className="flex items-center mb-6">
                             <PieChart className="text-indigo-600 mr-3" size={24} />
                             <h2 className="text-xl font-bold text-gray-800">Platform Demographics</h2>
@@ -220,10 +278,10 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-1">
                         <div className="flex items-center mb-6">
                             <BarChart3 className="text-indigo-600 mr-3" size={24} />
-                            <h2 className="text-xl font-bold text-gray-800">Top Medical Specialties</h2>
+                            <h2 className="text-xl font-bold text-gray-800">Top Specialties</h2>
                         </div>
                         {topSpecialties.length > 0 ? (
                             <div className="space-y-4">
@@ -233,7 +291,7 @@ const AdminDashboard = () => {
                                             <div className="w-8 h-8 rounded bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold mr-3 text-sm">
                                                 {index + 1}
                                             </div>
-                                            <span className="font-bold text-gray-700 truncate max-w-[200px]">{specialty}</span>
+                                            <span className="font-bold text-gray-700 truncate max-w-[150px]">{specialty}</span>
                                         </div>
                                         <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-bold">{count} Providers</span>
                                     </div>
@@ -245,6 +303,26 @@ const AdminDashboard = () => {
                                 <p className="text-sm font-medium">No verified specialties found.</p>
                             </div>
                         )}
+                    </div>
+
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-1 flex flex-col">
+                        <div className="flex items-center mb-6">
+                            <BellRing className="text-indigo-600 mr-3" size={24} />
+                            <h2 className="text-xl font-bold text-gray-800">System Alerts</h2>
+                        </div>
+                        <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                            {systemAlerts.map(alert => (
+                                <div key={alert.id} className={`p-4 rounded-lg border ${alert.bg} ${alert.border}`}>
+                                    <div className="flex items-start">
+                                        <div className="shrink-0 mt-0.5">{alert.icon}</div>
+                                        <div className="ml-3">
+                                            <h3 className="text-sm font-bold text-gray-900">{alert.title}</h3>
+                                            <p className="text-xs text-gray-700 mt-1">{alert.message}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             )}
