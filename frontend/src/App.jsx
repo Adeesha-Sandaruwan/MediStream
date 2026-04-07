@@ -6,6 +6,8 @@ import Telemedicine from './pages/Telemedicine';
 import { useAuth } from './context/AuthContext';
 import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
+import Appointments from './components/appointments';
+import Notifications from './components/Notifications';
 import DoctorDashboard from './pages/DoctorDashboard';
 import DoctorProfile from './pages/DoctorProfile';
 import DoctorAvailability from './pages/DoctorAvailability';
@@ -24,8 +26,6 @@ const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />;
     }
-    // Hard Lockdown: If feature requires verification, and user is a Doctor who is NOT approved, bounce them.
-    // (Patients are bypassed here since they don't require verification)
     if (requireVerified && role === 'DOCTOR' && verificationStatus !== 'APPROVED') {
         return <Navigate to="/doctor-dashboard" replace />;
     }
@@ -40,8 +40,6 @@ const Navbar = () => {
         <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-950 text-white shadow-xl border-b border-white/10 backdrop-blur-md bg-opacity-95">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-20">
-                    
-                    {/* Brand / Logo Section */}
                     <div className="flex items-center space-x-4">
                         <div className="bg-gradient-to-br from-blue-400 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
                             <Activity size={24} className="text-white" />
@@ -56,7 +54,6 @@ const Navbar = () => {
                         </div>
                     </div>
 
-                    {/* Actions Section */}
                     <button 
                         onClick={logout} 
                         className="group flex items-center space-x-2 bg-white/10 hover:bg-red-500 text-blue-50 hover:text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 border border-white/10 hover:border-red-400 hover:shadow-lg hover:shadow-red-500/40"
@@ -64,7 +61,6 @@ const Navbar = () => {
                         <span>Sign Out</span>
                         <LogOut size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
                     </button>
-
                 </div>
             </div>
         </nav>
@@ -88,9 +84,12 @@ export default function App() {
             
             <Routes>
                 <Route path="/auth" element={<Auth />} />
+                
+                <Route path="/appointments" element={<Appointments />}/>
+                <Route path="/notifications" element={<Notifications />}/>
+                
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
-                {/* Patient Routes */}
                 <Route path="/patient-dashboard" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={
                     <ProtectedRoute allowedRoles={['PATIENT']}>
@@ -113,13 +112,8 @@ export default function App() {
                     </ProtectedRoute>
                 } />
 
-                {/* Doctor Routes */}
                 <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
-                
-                {/* Profile does NOT require verification (so they can fill it out) */}
                 <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
-                
-                {/* These require verification! */}
                 <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
                 <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
@@ -128,10 +122,8 @@ export default function App() {
 
                 <Route path="/patient-prescriptions" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientPrescriptions /></ProtectedRoute>} />
                 
-                {/* Shared Routes */}
                 <Route path="/telemedicine" element={<ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']} requireVerified={true}><Telemedicine /></ProtectedRoute>} />
 
-                {/* Admin Routes */}
                 <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />

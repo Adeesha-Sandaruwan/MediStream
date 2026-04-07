@@ -1,0 +1,54 @@
+
+
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="${subject}">Notification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 5px;
+        }
+        .content {
+            background-color: #f9f9f9;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+        }
+        .footer {
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 th:text="${subject}">Healthcare Notification</h1>
+    </div>
+    
+    <div class="content">
+        <p th:utext="${content}">Your notification content here</p>
+    </div>
+    
+    <div class="footer">
+        <p>This is an automated message from Healthcare Notification System.</p>
+        <p>&copy; 2026 Healthcare System. All rights reserved.</p>
+        <p>Please do not reply to this email.</p>
+    </div>
+</body>
+</html>
