@@ -8,53 +8,61 @@ import MedicalReports from './pages/MedicalReports';
 import AdminDashboard from './pages/AdminDashboard';
 import Appointments from './components/appointments';
 import Notifications from './components/Notifications';
+import DoctorDashboard from './pages/DoctorDashboard';
+import DoctorProfile from './pages/DoctorProfile';
+import DoctorAvailability from './pages/DoctorAvailability';
+import DoctorAppointments from './pages/DoctorAppointments';
+import DoctorPrescriptions from './pages/DoctorPrescriptions';
+import PatientDoctorSearch from './pages/PatientDoctorSearch';
+import PatientPrescriptions from './pages/PatientPrescriptions';
+import { Activity, LogOut } from 'lucide-react';
 
-const DoctorDashboard = () => (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-gray-800">Doctor Dashboard (Under Construction)</h1>
-        <p className="mt-3 text-gray-600">
-            Use Telemedicine to start or join patient video consultations.
-        </p>
-        <div className="mt-6">
-            <Link
-                to="/telemedicine"
-                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors"
-            >
-                Open Telemedicine
-            </Link>
-        </div>
-    </div>
-);
-
-const ProtectedRoute = ({ children, allowedRoles }) => {
-    const { token, role } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
+    const { token, role, verificationStatus } = useAuth();
+    
     if (!token) {
         return <Navigate to="/auth" replace />;
     }
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />;
     }
+    if (requireVerified && role === 'DOCTOR' && verificationStatus !== 'APPROVED') {
+        return <Navigate to="/doctor-dashboard" replace />;
+    }
+    
     return children;
 };
 
 const Navbar = () => {
     const { logout, role } = useAuth();
 
-    const handleLogout = () => {
-        logout();
-    };
-
     return (
-        <nav className="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md">
-            <div className="text-xl font-bold tracking-wider">
-                MediStream <span className="text-sm font-normal text-blue-200 ml-2">[{role || 'USER'}]</span>
+        <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-950 text-white shadow-xl border-b border-white/10 backdrop-blur-md bg-opacity-95">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center h-20">
+                    <div className="flex items-center space-x-4">
+                        <div className="bg-gradient-to-br from-blue-400 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
+                            <Activity size={24} className="text-white" />
+                        </div>
+                        <div className="flex flex-col justify-center">
+                            <span className="text-2xl font-black tracking-wide leading-none bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100">
+                                MediStream
+                            </span>
+                            <span className="text-[11px] font-bold text-blue-300 tracking-[0.2em] uppercase mt-1">
+                                {role || 'USER'} PORTAL
+                            </span>
+                        </div>
+                    </div>
+
+                    <button 
+                        onClick={logout} 
+                        className="group flex items-center space-x-2 bg-white/10 hover:bg-red-500 text-blue-50 hover:text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-300 border border-white/10 hover:border-red-400 hover:shadow-lg hover:shadow-red-500/40"
+                    >
+                        <span>Sign Out</span>
+                        <LogOut size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
+                    </button>
+                </div>
             </div>
-            <button 
-                onClick={handleLogout} 
-                className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-semibold transition-colors duration-300"
-            >
-                Logout
-            </button>
         </nav>
     );
 };
@@ -76,68 +84,47 @@ export default function App() {
             
             <Routes>
                 <Route path="/auth" element={<Auth />} />
-
-                 <Route path="/appointments" element={<Appointments />}/>
-
-                   <Route path="/notifications" element={<Notifications />}/>
+                
+                <Route path="/appointments" element={<Appointments />}/>
+                <Route path="/notifications" element={<Notifications />}/>
                 
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
-                <Route 
-                    path="/patient-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} 
-                />
+                <Route path="/patient-dashboard" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} />
+                <Route path="/profile" element={
+                    <ProtectedRoute allowedRoles={['PATIENT']}>
+                        <div className="py-6">
+                            <div className="max-w-7xl mx-auto px-4 mb-6">
+                                <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">&larr; Back to Dashboard</Link>
+                            </div>
+                            <MedicalProfile />
+                        </div>
+                    </ProtectedRoute>
+                } />
+                <Route path="/reports" element={
+                    <ProtectedRoute allowedRoles={['PATIENT']}>
+                        <div className="py-6">
+                            <div className="max-w-7xl mx-auto px-4 mb-6">
+                                <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">&larr; Back to Dashboard</Link>
+                            </div>
+                            <MedicalReports />
+                        </div>
+                    </ProtectedRoute>
+                } />
+
+                <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
+                <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
+                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
+                <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
+                <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
+
+                <Route path="/patient-doctors" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDoctorSearch /></ProtectedRoute>} />
+
+                <Route path="/patient-prescriptions" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientPrescriptions /></ProtectedRoute>} />
                 
-                <Route 
-                    path="/profile" 
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalProfile />
-                            </div>
-                        </ProtectedRoute>
-                    } 
-                />
+                <Route path="/telemedicine" element={<ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']} requireVerified={true}><Telemedicine /></ProtectedRoute>} />
 
-                <Route 
-                    path="/reports" 
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalReports />
-                            </div>
-                        </ProtectedRoute>
-                    } 
-                />
-
-                <Route 
-                    path="/doctor-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
-                />
-
-                <Route
-                    path="/telemedicine"
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']}>
-                            <Telemedicine />
-                        </ProtectedRoute>
-                    }
-                />
-
-                <Route 
-                    path="/admin-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} 
-                />
+                <Route path="/admin-dashboard" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
