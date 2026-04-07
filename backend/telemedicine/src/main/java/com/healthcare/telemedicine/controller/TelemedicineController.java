@@ -67,6 +67,11 @@ public class TelemedicineController {
         return ResponseEntity.ok(consultationService.listDoctorSchedules(authentication.getName()));
     }
 
+    @GetMapping("/doctor/meetings/past")
+    public ResponseEntity<List<DoctorPastMeetingDto>> doctorPastMeetings(Authentication authentication) {
+        return ResponseEntity.ok(consultationService.listDoctorPastMeetings(authentication.getName()));
+    }
+
     @PostMapping("/session/{roomId}/start")
     public ResponseEntity<SessionResponse> startSession(
             @PathVariable("roomId") String roomId,
