@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
  * Feign Client for inter-service communication with Patient Service
  * Used to fetch patient information and validate patient existence
  */
-@FeignClient(name = "patient-service", url = "${feign.patient-service.url:http://localhost:8081}")
+@FeignClient(name = "patient-service", url = "${feign.patient-service.url:http://localhost:8082}")
 public interface PatientServiceClient {
 
     /**
