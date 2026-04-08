@@ -1,7 +1,5 @@
 const API_URL = 'http://localhost:8082/api/patients';
 
-// --- PROFILE ENDPOINTS ---
-
 export const getMedicalProfile = async (token) => {
     const response = await fetch(`${API_URL}/profile`, {
         method: 'GET',
@@ -27,8 +25,6 @@ export const updateMedicalProfile = async (token, profileData) => {
     return response.json();
 };
 
-// --- REPORT ENDPOINTS--
-
 export const getMedicalReports = async (token) => {
     const response = await fetch(`${API_URL}/reports`, {
         method: 'GET',
@@ -41,7 +37,6 @@ export const getMedicalReports = async (token) => {
 };
 
 export const uploadMedicalReport = async (token, file) => {
-    // For files, we MUST use FormData instead of JSON
     const formData = new FormData();
     formData.append('file', file);
 
@@ -49,8 +44,6 @@ export const uploadMedicalReport = async (token, file) => {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${token}`
-            // CRITICAL: We DO NOT set 'Content-Type' here! 
-            // The browser automatically sets it to 'multipart/form-data' with a special boundary string.
         },
         body: formData
     });
@@ -73,7 +66,6 @@ export const downloadReportSecurely = async (token, fileName, originalName) => {
     const link = document.createElement('a');
     link.href = downloadUrl;
     
-    // CRITICAL FIX: Tell the browser to save the file using the original name!
     link.download = originalName || fileName; 
     
     document.body.appendChild(link);
@@ -91,5 +83,45 @@ export const getAllPatients = async (token) => {
         }
     });
     if (!response.ok) throw new Error('Failed to fetch patient records');
+    return response.json();
+};
+
+export const getMyPrescriptionsAsPatient = async (token) => {
+    const response = await fetch('http://localhost:8084/api/doctors/prescriptions/patient/me', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!response.ok) throw new Error('Failed to fetch digital prescriptions');
+    return response.json();
+};
+
+export const getAllVerifiedDoctors = async (token) => {
+    const response = await fetch('http://localhost:8084/api/doctors/all', {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch doctor directory');
+    
+    return response.json();
+};
+
+export const getDoctorAvailability = async (token, doctorEmail) => {
+    const response = await fetch(`http://localhost:8084/api/doctors/availability/doctor/${doctorEmail}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch doctor availability');
+    
     return response.json();
 };
