@@ -49,8 +49,8 @@ const Navbar = () => {
             <div className="text-xl font-bold tracking-wider">
                 MediStream <span className="text-sm font-normal text-blue-200 ml-2">[{role || 'USER'}]</span>
             </div>
-            <button 
-                onClick={handleLogout} 
+            <button
+                onClick={handleLogout}
                 className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-semibold transition-colors duration-300"
             >
                 Logout
@@ -61,7 +61,7 @@ const Navbar = () => {
 
 const RootRouter = () => {
     const { role } = useAuth();
-    
+
     if (role === 'DOCTOR') return <Navigate to="/doctor-dashboard" replace />;
     if (role === 'ADMIN') return <Navigate to="/admin-dashboard" replace />;
     return <Navigate to="/patient-dashboard" replace />;
@@ -73,23 +73,38 @@ export default function App() {
     return (
         <div className="min-h-screen bg-gray-50">
             {token && <Navbar />}
-            
+
             <Routes>
                 <Route path="/auth" element={<Auth />} />
 
-                 <Route path="/appointments" element={<Appointments />}/>
 
-                   <Route path="/notifications" element={<Notifications />}/>
-                
+                <Route
+                    path="/appointments"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']}>
+                            <Appointments />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/notifications"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']}>
+                            <Notifications />
+                        </ProtectedRoute>
+                    }
+                />
+
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
-                <Route 
-                    path="/patient-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} 
+                <Route
+                    path="/patient-dashboard"
+                    element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>}
                 />
-                
-                <Route 
-                    path="/profile" 
+
+                <Route
+                    path="/profile"
                     element={
                         <ProtectedRoute allowedRoles={['PATIENT']}>
                             <div className="py-6">
@@ -101,11 +116,11 @@ export default function App() {
                                 <MedicalProfile />
                             </div>
                         </ProtectedRoute>
-                    } 
+                    }
                 />
 
-                <Route 
-                    path="/reports" 
+                <Route
+                    path="/reports"
                     element={
                         <ProtectedRoute allowedRoles={['PATIENT']}>
                             <div className="py-6">
@@ -117,12 +132,12 @@ export default function App() {
                                 <MedicalReports />
                             </div>
                         </ProtectedRoute>
-                    } 
+                    }
                 />
 
-                <Route 
-                    path="/doctor-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} 
+                <Route
+                    path="/doctor-dashboard"
+                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>}
                 />
 
                 <Route
@@ -134,9 +149,9 @@ export default function App() {
                     }
                 />
 
-                <Route 
-                    path="/admin-dashboard" 
-                    element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} 
+                <Route
+                    path="/admin-dashboard"
+                    element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
                 />
 
                 <Route path="*" element={<Navigate to="/" replace />} />
