@@ -4,6 +4,10 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+logs/appointment-service.log
+*.log
+**/logs/
+
 ### STS ###
 .apt_generated
 .classpath
