@@ -20,6 +20,12 @@ public class SupabaseConfig {
     
     @Value("${spring.datasource.password}")
     private String password;
+
+    @Value("${spring.datasource.hikari.maximum-pool-size:1}")
+    private int maximumPoolSize;
+
+    @Value("${spring.datasource.hikari.minimum-idle:0}")
+    private int minimumIdle;
     
     @Bean
     @Primary
@@ -29,8 +35,8 @@ public class SupabaseConfig {
         config.setUsername(username);
         config.setPassword(password);
         config.setDriverClassName("org.postgresql.Driver");
-        config.setMaximumPoolSize(10);
-        config.setMinimumIdle(5);
+        config.setMaximumPoolSize(maximumPoolSize);
+        config.setMinimumIdle(minimumIdle);
         config.setConnectionTimeout(30000);
         config.setIdleTimeout(600000);
         config.setMaxLifetime(1800000);
