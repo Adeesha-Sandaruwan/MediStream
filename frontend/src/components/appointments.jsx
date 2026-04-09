@@ -5,13 +5,10 @@ import AppointmentTable from '../components/appointmentTable';
 import AppointmentForm from '../components/appointmentForm';
 import image from '../assets/land.png';
 import { useLocation } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { getMyPatientProfile } from '../api/patientApi';
 
 const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 const Appointments = () => {
-  const { token, role } = useAuth();
   const location = useLocation();
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
@@ -19,8 +16,6 @@ const Appointments = () => {
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(Boolean(location.state?.openCreateForm));
   const [editingAppointment, setEditingAppointment] = useState(null);
-  const [currentPatientId, setCurrentPatientId] = useState(location.state?.patientId || null);
-  const isPatientView = role === 'PATIENT';
   
   // Filter states
   const [statusFilter, setStatusFilter] = useState('');
@@ -36,63 +31,16 @@ const Appointments = () => {
     setLoading(true);
     setError(null);
     try {
-      if (isPatientView && token) {
-        let patientId = currentPatientId;
-
-        if (!patientId) {
-          const patientProfile = await getMyPatientProfile(token);
-          patientId = patientProfile.id;
-          setCurrentPatientId(patientId);
-        }
-
-        const response = await axios.get(`${API_BASE_URL}/patient/${patientId}`);
-        setAppointments(response.data);
-        setFilteredAppointments(response.data);
-      } else {
-        const response = await axios.get(API_BASE_URL);
-        setAppointments(response.data);
-        setFilteredAppointments(response.data);
-      }
+      const response = await axios.get(API_BASE_URL);
+      setAppointments(response.data);
+      setFilteredAppointments(response.data);
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError('Failed to load appointments. Please try again later.');
     } finally {
       setLoading(false);
     }
-  }, [currentPatientId, isPatientView, token]);
-
-  useEffect(() => {
-    const bootPatientAppointmentForm = async () => {
-      if (!location.state?.openCreateForm) {
-        return;
-      }
-
-      let resolvedPatientId = location.state?.patientId || currentPatientId;
-
-      if (!resolvedPatientId && token) {
-        try {
-          const patientProfile = await getMyPatientProfile(token);
-          resolvedPatientId = patientProfile.id;
-          setCurrentPatientId(resolvedPatientId);
-        } catch (err) {
-          console.error('Error loading patient profile:', err);
-        }
-      }
-
-      if (resolvedPatientId || location.state?.doctorId) {
-        setEditingAppointment({
-          patientId: resolvedPatientId || '',
-          doctorId: location.state?.doctorId || '',
-          appointmentDate: '',
-          durationMinutes: '30',
-          reason: '',
-          notes: ''
-        });
-      }
-    };
-
-    bootPatientAppointmentForm();
-  }, [currentPatientId, location.state, token]);
+  }, []);
 
   // Apply filters
   useEffect(() => {
@@ -130,6 +78,23 @@ const Appointments = () => {
   useEffect(() => {
     fetchAppointments();
   }, [fetchAppointments]);
+
+  useEffect(() => {
+    if (!location.state?.openCreateForm) {
+      return;
+    }
+
+    setShowForm(true);
+    setEditingAppointment({
+      patientId: location.state?.patientId || '',
+      doctorId: location.state?.doctorId || '',
+      doctorAvailability: location.state?.doctorAvailability || [],
+      appointmentDate: '',
+      durationMinutes: '30',
+      reason: '',
+      notes: ''
+    });
+  }, [location.state]);
 
   const handleRefresh = () => {
     fetchAppointments();
@@ -182,7 +147,7 @@ const Appointments = () => {
     setDateRange({ startDate: '', endDate: '' });
   };
 
-  if (loading && appointments.length === 0 && !showForm) {
+  if (loading && appointments.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-gray-500">Loading appointments...</div>
@@ -344,7 +309,6 @@ const Appointments = () => {
           appointments={filteredAppointments}
           onEdit={handleEditClick}
           onRefresh={handleRefresh}
-          currentRole={role}
         />
       </div>
 

@@ -18,6 +18,12 @@ const PatientDoctorSearch = () => {
     const [availabilitySlots, setAvailabilitySlots] = useState([]);
     const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
 
+    const isBookableSlot = (slot) => {
+        const slotType = (slot?.slotType || 'CONSULTATION').toUpperCase();
+        const active = slot?.active !== false;
+        return active && slotType !== 'LEAVE';
+    };
+
     useEffect(() => {
         fetchDoctors();
     }, [token]);
@@ -61,7 +67,7 @@ const PatientDoctorSearch = () => {
         setIsAvailabilityLoading(true);
         try {
             const slots = await getDoctorAvailability(token, doctor.email);
-            const activeSlots = slots.filter(slot => slot.active);
+            const activeSlots = slots.filter(isBookableSlot);
             setAvailabilitySlots(activeSlots);
         } catch (err) {
             console.error(err);
@@ -74,11 +80,20 @@ const PatientDoctorSearch = () => {
     const handleBookAppointment = async (doctor) => {
         try {
             const patientProfile = await getMyPatientProfile(token);
+            const slots = await getDoctorAvailability(token, doctor.email);
+            const activeSlots = slots.filter(isBookableSlot);
+
+            if (activeSlots.length === 0) {
+                setError('This doctor has no active clinic schedule yet. Please choose another doctor or try later.');
+                return;
+            }
+
             navigate('/appointments', {
                 state: {
                     openCreateForm: true,
                     patientId: patientProfile.id,
                     doctorId: doctor.id,
+                    doctorAvailability: activeSlots,
                 },
             });
         } catch (err) {

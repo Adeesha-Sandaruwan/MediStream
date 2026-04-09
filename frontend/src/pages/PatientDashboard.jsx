@@ -85,13 +85,22 @@ const PatientDashboard = () => {
                         <h2 className="ml-4 text-xl font-semibold text-gray-800">Appointments</h2>
                     </div>
                     <p className="text-gray-600 mb-6 h-12">Book and manage your in-person or online appointments.</p>
-                    <Link
-                        to="/appointments"
-                        state={{ openCreateForm: true }}
-                        className="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
-                    >
-                        Book Appointment
-                    </Link>
+                    <div className="grid grid-cols-1 gap-3">
+                        <Link
+                            to="/appointments"
+                            state={{ openCreateForm: true }}
+                            className="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
+                        >
+                            Book Appointment
+                        </Link>
+                        <button
+                            type="button"
+                            className="block w-full text-center bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
+                            onClick={() => window.alert('Payment service will be connected by the payment team soon.')}
+                        >
+                            Pay Now
+                        </button>
+                    </div>
                 </div>
 
                 {/* Feature 5: Telemedicine */}

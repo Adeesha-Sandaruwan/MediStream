@@ -4,12 +4,11 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
-const AppointmentTable = ({ appointments, onEdit, onRefresh, currentRole }) => {
+const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
   const [loadingAction, setLoadingAction] = useState(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
-  const isPatientView = currentRole === 'PATIENT';
 
   const handleApprove = async (appointmentId) => {
     if (window.confirm('Are you sure you want to approve this appointment?')) {
@@ -67,10 +66,6 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh, currentRole }) => {
     } finally {
       setLoadingAction(null);
     }
-  };
-
-  const handlePayNow = (appointment) => {
-    alert(`Payment flow will be connected for appointment #${appointment.id} soon.`);
   };
 
   const getStatusBadgeColor = (status) => {
@@ -154,63 +149,41 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh, currentRole }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2 flex-wrap gap-y-2">
-                      {isPatientView ? (
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => onEdit(appointment)}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        Edit
+                      </button>
+                      
+                      {appointment.status === 'PENDING' && (
                         <>
                           <button
-                            onClick={() => handlePayNow(appointment)}
-                            className="text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded-md"
+                            onClick={() => handleApprove(appointment.id)}
+                            disabled={loadingAction === appointment.id}
+                            className="text-green-600 hover:text-green-900 disabled:opacity-50"
                           >
-                            Pay Now
+                            Approve
                           </button>
-                          {(appointment.status === 'PENDING' || appointment.status === 'APPROVED') && (
-                            <button
-                              onClick={() => handleCancelClick(appointment)}
-                              disabled={loadingAction === appointment.id}
-                              className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </>
-                      ) : (
-                        <>
                           <button
-                            onClick={() => onEdit(appointment)}
-                            className="text-blue-600 hover:text-blue-900"
+                            onClick={() => handleReject(appointment.id)}
+                            disabled={loadingAction === appointment.id}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
                           >
-                            Edit
+                            Reject
                           </button>
-                          
-                          {appointment.status === 'PENDING' && (
-                            <>
-                              <button
-                                onClick={() => handleApprove(appointment.id)}
-                                disabled={loadingAction === appointment.id}
-                                className="text-green-600 hover:text-green-900 disabled:opacity-50"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => handleReject(appointment.id)}
-                                disabled={loadingAction === appointment.id}
-                                className="text-red-600 hover:text-red-900 disabled:opacity-50"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          
-                          {(appointment.status === 'PENDING' || appointment.status === 'APPROVED') && (
-                            <button
-                              onClick={() => handleCancelClick(appointment)}
-                              disabled={loadingAction === appointment.id}
-                              className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
-                            >
-                              Cancel
-                            </button>
-                          )}
                         </>
+                      )}
+                      
+                      {(appointment.status === 'PENDING' || appointment.status === 'APPROVED') && (
+                        <button
+                          onClick={() => handleCancelClick(appointment)}
+                          disabled={loadingAction === appointment.id}
+                          className="text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
                       )}
                     </div>
                   </td>
