@@ -105,7 +105,7 @@ const MedicalProfile = () => {
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
                 <div className="bg-indigo-600 px-8 py-6 text-white flex justify-between items-center">
                     <div>
-                        <h2 className="text-2xl font-bold">Comprehensive Medical Profile</h2>
+                        <h2 className="text-2xl font-bold">Patient Medical Profile</h2>
                         <p className="text-indigo-100 mt-1 text-sm">Keep your records up to date for accurate care.</p>
                     </div>
                 </div>
