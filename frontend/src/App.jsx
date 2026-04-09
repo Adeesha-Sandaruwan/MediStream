@@ -9,56 +9,71 @@ import AdminDashboard from './pages/AdminDashboard';
 import Appointments from './components/appointments';
 import Notifications from './components/Notifications';
 
+
+// ================= Doctor Dashboard =================
 const DoctorDashboard = () => (
     <div className="max-w-7xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-bold text-gray-800">Doctor Dashboard (Under Construction)</h1>
+        <h1 className="text-3xl font-bold text-gray-800">Doctor Dashboard</h1>
         <p className="mt-3 text-gray-600">
-            Use Telemedicine to start or join patient video consultations.
+            Manage appointments and patient consultations.
         </p>
-        <div className="mt-6">
-            <Link
-                to="/telemedicine"
-                className="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors"
-            >
-                Open Telemedicine
+
+        <div className="mt-6 flex gap-4">
+            <Link to="/appointments" className="bg-blue-600 text-white px-4 py-2 rounded">
+                Appointments
+            </Link>
+
+            <Link to="/notifications" className="bg-green-600 text-white px-4 py-2 rounded">
+                Notifications
+            </Link>
+
+            <Link to="/telemedicine" className="bg-indigo-600 text-white px-4 py-2 rounded">
+                Telemedicine
             </Link>
         </div>
     </div>
 );
 
+
+// ================= Protected Route =================
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { token, role } = useAuth();
+
     if (!token) {
         return <Navigate to="/auth" replace />;
     }
+
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />;
     }
+
     return children;
 };
 
+
+// ================= Navbar =================
 const Navbar = () => {
     const { logout, role } = useAuth();
 
-    const handleLogout = () => {
-        logout();
-    };
-
     return (
-        <nav className="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md">
-            <div className="text-xl font-bold tracking-wider">
-                MediStream <span className="text-sm font-normal text-blue-200 ml-2">[{role || 'USER'}]</span>
+        <nav className="bg-blue-800 text-white p-4 flex justify-between">
+            <div className="font-bold">
+                MediStream [{role}]
             </div>
-            <button
-                onClick={handleLogout}
-                className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-semibold transition-colors duration-300"
-            >
-                Logout
-            </button>
+
+            <div className="flex gap-4">
+                <Link to="/appointments">Appointments</Link>
+                <Link to="/notifications">Notifications</Link>
+                <button onClick={logout} className="bg-red-500 px-3 py-1 rounded">
+                    Logout
+                </button>
+            </div>
         </nav>
     );
 };
 
+
+// ================= Root Redirect =================
 const RootRouter = () => {
     const { role } = useAuth();
 
@@ -67,6 +82,8 @@ const RootRouter = () => {
     return <Navigate to="/patient-dashboard" replace />;
 };
 
+
+// ================= MAIN APP =================
 export default function App() {
     const { token } = useAuth();
 
@@ -75,8 +92,69 @@ export default function App() {
             {token && <Navbar />}
 
             <Routes>
+
+                {/* Auth */}
                 <Route path="/auth" element={<Auth />} />
 
+                {/* Root */}
+                <Route
+                    path="/"
+                    element={
+                        <ProtectedRoute>
+                            <RootRouter />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* ================= PATIENT ================= */}
+                <Route
+                    path="/patient-dashboard"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT']}>
+                            <PatientDashboard />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT']}>
+                            <MedicalProfile />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/reports"
+                    element={
+                        <ProtectedRoute allowedRoles={['PATIENT']}>
+                            <MedicalReports />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* ================= DOCTOR ================= */}
+                <Route
+                    path="/doctor-dashboard"
+                    element={
+                        <ProtectedRoute allowedRoles={['DOCTOR']}>
+                            <DoctorDashboard />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* ================= ADMIN ================= */}
+                <Route
+                    path="/admin-dashboard"
+                    element={
+                        <ProtectedRoute allowedRoles={['ADMIN']}>
+                            <AdminDashboard />
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* ================= SHARED (PATIENT + DOCTOR) ================= */}
 
                 <Route
                     path="/appointments"
@@ -96,50 +174,6 @@ export default function App() {
                     }
                 />
 
-                <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
-
-                <Route
-                    path="/patient-dashboard"
-                    element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>}
-                />
-
-                <Route
-                    path="/profile"
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalProfile />
-                            </div>
-                        </ProtectedRoute>
-                    }
-                />
-
-                <Route
-                    path="/reports"
-                    element={
-                        <ProtectedRoute allowedRoles={['PATIENT']}>
-                            <div className="py-6">
-                                <div className="max-w-7xl mx-auto px-4 mb-6">
-                                    <Link to="/patient-dashboard" className="text-blue-600 hover:text-blue-800 font-medium">
-                                        &larr; Back to Dashboard
-                                    </Link>
-                                </div>
-                                <MedicalReports />
-                            </div>
-                        </ProtectedRoute>
-                    }
-                />
-
-                <Route
-                    path="/doctor-dashboard"
-                    element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>}
-                />
-
                 <Route
                     path="/telemedicine"
                     element={
@@ -149,12 +183,9 @@ export default function App() {
                     }
                 />
 
-                <Route
-                    path="/admin-dashboard"
-                    element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>}
-                />
-
+                {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
+
             </Routes>
         </div>
     );
