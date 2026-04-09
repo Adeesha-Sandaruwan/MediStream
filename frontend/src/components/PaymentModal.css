@@ -4,6 +4,22 @@
   gap: 1rem;
 }
 
+.payment-form button[type="submit"] {
+  min-height: 48px;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s, opacity 0.2s;
+  border: none;
+  cursor: pointer;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
 .payment-modal-panel {
   border: 1px solid rgba(99, 102, 241, 0.12);
 }
@@ -12,38 +28,46 @@
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid #dbe4ff;
   border-radius: 14px;
-  padding: 0.9rem 1rem;
+  padding: 1.5rem 1.5rem;
 }
 
 .payment-element-card {
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   border: 1px solid #e2e8f0;
   border-radius: 18px;
-  padding: 1rem;
+  padding: 1.5rem;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  margin-bottom: 1rem;
 }
 
 .payment-element-card__header {
-  margin-bottom: 0.9rem;
+  margin-bottom: 1.2rem;
 }
 
 .payment-element-card__title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: #0f172a;
 }
 
 .payment-element-card__subtitle {
-  margin: 0.35rem 0 0;
-  font-size: 0.92rem;
-  line-height: 1.45;
+  margin: 0.5rem 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
   color: #475569;
 }
 
-.payment-form button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.payment-form button[type="submit"]:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
+.payment-form button[type="submit"] svg {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
 }
 
 /* Stripe Elements styling */
@@ -109,9 +133,10 @@
     padding: 0.8rem 0.9rem;
   }
 
-  .payment-form button {
+  .payment-form button[type="submit"] {
     font-size: 14px;
-    padding: 10px 16px;
+    padding: 12px 16px;
+    min-height: 44px;
   }
 }
 

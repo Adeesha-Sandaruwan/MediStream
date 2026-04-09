@@ -112,7 +112,7 @@ export default function DoctorAppointments() {
   const others = appointments.filter((a) => !['PENDING', 'ACCEPTED', 'APPROVED'].includes(a.status));
 
   const renderCard = (item) => (
-    <div key={item.id} className="border border-gray-200 rounded-2xl p-4 hover:shadow-sm transition-shadow bg-white">
+    <div key={item.id} className="border border-gray-200 rounded-2xl p-4 hover:shadow-sm transition-shadow bg-white overflow-visible">
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
         <div className="flex-1 space-y-1.5">
           <p className="font-bold text-gray-900 flex items-center">
@@ -137,14 +137,14 @@ export default function DoctorAppointments() {
           )}
         </div>
 
-        <span className={`inline-flex items-center w-fit px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${getStatusStyle(item.status)}`}>
+        <span className={`inline-flex items-center w-fit px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide flex-shrink-0 ${getStatusStyle(item.status)}`}>
           <Hourglass className="mr-1" size={12} />
           {item.status}
         </span>
       </div>
 
       {item.status === 'PENDING' && (
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-4 w-full">
           <button
             onClick={() => openDecisionModal(item.appointmentId, 'ACCEPTED')}
             className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
@@ -161,11 +161,11 @@ export default function DoctorAppointments() {
       )}
 
       {(item.status === 'ACCEPTED' || item.status === 'APPROVED') && (
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-2 mt-4 w-full">
           <button
             onClick={() => handleCompleteAppointment(item.appointmentId)}
             disabled={completingId === item.appointmentId}
-            className="inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+            className="inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer"
           >
             <ClipboardCheck className="mr-1" size={16} />
             {completingId === item.appointmentId ? 'Completing…' : 'Mark as Completed'}
