@@ -44,7 +44,7 @@ const PatientPrescriptions = () => {
 
                 <section className="rounded-3xl border border-amber-100 bg-linear-to-r from-amber-500 to-orange-500 p-6 sm:p-8 text-white shadow-xl shadow-amber-300/30 mb-8">
                     <p className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide">
-                        <Sparkles size={14} /> DIGITAL PRESCRIPTION VAULT
+                     DIGITAL PRESCRIPTION VAULT
                     </p>
                     <h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">My Prescriptions</h1>
                     <p className="mt-2 text-amber-50 max-w-2xl">Review diagnosis details, medication plans, and doctor guidance in one clean timeline.</p>

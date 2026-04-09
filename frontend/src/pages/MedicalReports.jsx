@@ -75,7 +75,7 @@ const MedicalReports = () => {
             <div className="max-w-5xl mx-auto px-4 py-10">
                 <section className="rounded-3xl border border-indigo-100 bg-linear-to-r from-indigo-600 to-cyan-600 p-6 sm:p-8 text-white shadow-xl shadow-indigo-400/20 mb-8">
                     <p className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide">
-                        <Sparkles size={14} /> HEALTH RECORD CENTER
+                         HEALTH RECORD CENTER
                     </p>
                     <h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">My Medical Reports</h1>
                     <p className="mt-2 text-indigo-50 max-w-2xl">

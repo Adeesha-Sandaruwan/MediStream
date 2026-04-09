@@ -106,7 +106,7 @@ const MedicalProfile = () => {
             <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <section className="rounded-3xl border border-cyan-100 bg-linear-to-r from-cyan-600 to-indigo-600 p-6 sm:p-8 text-white shadow-xl shadow-cyan-400/20 mb-8">
                     <p className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide">
-                        <Sparkles size={14} /> PATIENT PROFILE
+                     PATIENT PROFILE
                     </p>
                     <h2 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">Patient Medical Profile</h2>
                     <p className="text-cyan-50 mt-2">Keep your records up to date for accurate and safer care.</p>

@@ -82,7 +82,6 @@ const PatientDashboard = () => {
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
                         <div>
                             <p className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold tracking-wide">
-                                <Sparkles size={14} />
                                 PATIENT PORTAL
                             </p>
                             <h1 className="mt-3 text-3xl sm:text-4xl font-black tracking-tight">Your Health, Organized in One Place</h1>

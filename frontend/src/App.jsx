@@ -126,8 +126,8 @@ export default function App() {
             <Routes>
                 <Route path="/auth" element={<Auth />} />
                 
-                <Route path="/appointments" element={<Appointments />}/>
-                <Route path="/notifications" element={<Notifications />}/>
+                <Route path="/appointments" element={<ProtectedRoute allowedRoles={['ADMIN']}><Appointments /></ProtectedRoute>} />
+                <Route path="/notifications" element={<ProtectedRoute allowedRoles={['ADMIN', 'DOCTOR']}><Notifications /></ProtectedRoute>} />
                 
                 <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
@@ -160,6 +160,8 @@ export default function App() {
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 
                 <Route path="/patient-doctors" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDoctorSearch /></ProtectedRoute>} />
+
+                <Route path="/patient-book-appointment" element={<ProtectedRoute allowedRoles={['PATIENT']}><Appointments /></ProtectedRoute>} />
 
                 <Route path="/patient-appointments" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientAppointments /></ProtectedRoute>} />
 
