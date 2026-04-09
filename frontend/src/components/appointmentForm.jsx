@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8083/api/v1/appointments'; // Adjust to your backend URL
+const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 const AppointmentForm = ({ appointment, onSave, onCancel }) => {
   const [formData, setFormData] = useState({
