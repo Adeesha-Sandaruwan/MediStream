@@ -16,6 +16,20 @@ export default function DoctorAppointments() {
   // Notes modal state
   const [notesModal, setNotesModal] = useState(null); // { appointmentId, status }
   const [doctorNotes, setDoctorNotes] = useState('');
+  const [scheduledStartLocal, setScheduledStartLocal] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [regenerateLink, setRegenerateLink] = useState(false);
+
+  const toDatetimeLocalValue = (input) => {
+    const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
+    const d = input ? new Date(input) : defaultFuture;
+    let safeDate = Number.isNaN(d.getTime()) ? defaultFuture : d;
+    if (safeDate.getTime() < Date.now() + 120000) {
+      safeDate = defaultFuture;
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${safeDate.getFullYear()}-${pad(safeDate.getMonth() + 1)}-${pad(safeDate.getDate())}T${pad(safeDate.getHours())}:${pad(safeDate.getMinutes())}`;
+  };
 
   const loadAppointments = useCallback(async () => {
     setError('');
@@ -36,6 +50,10 @@ export default function DoctorAppointments() {
 
   const openDecisionModal = (appointmentId, status) => {
     setDoctorNotes('');
+    const appointment = appointments.find((a) => a.appointmentId === appointmentId || a.id === appointmentId);
+    setScheduledStartLocal(toDatetimeLocalValue(appointment?.scheduledAt));
+    setDurationMinutes(60);
+    setRegenerateLink(false);
     setNotesModal({ appointmentId, status });
   };
 
@@ -45,7 +63,20 @@ export default function DoctorAppointments() {
     setError('');
     setNotesModal(null);
     try {
-      await decideAppointment(token, appointmentId, { status, doctorNotes });
+      const payload = { status, doctorNotes };
+      if (status === 'ACCEPTED') {
+        const start = new Date(scheduledStartLocal);
+        if (Number.isNaN(start.getTime())) {
+          throw new Error('Choose a valid telemedicine start date/time');
+        }
+        if (start.getTime() < Date.now() + 120000) {
+          throw new Error('Choose a telemedicine time at least 2 minutes in the future');
+        }
+        payload.scheduledStartAt = start.toISOString();
+        payload.durationMinutes = Number(durationMinutes) || 60;
+        payload.regenerateLink = regenerateLink;
+      }
+      await decideAppointment(token, appointmentId, payload);
       await loadAppointments();
     } catch (err) {
       setError(err.message || 'Failed to update appointment decision');
@@ -281,6 +312,40 @@ export default function DoctorAppointments() {
                   className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 resize-none"
                 />
               </div>
+
+              {notesModal.status === 'ACCEPTED' && (
+                <div className="space-y-3 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Telemedicine setup</p>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Visit Start Time</label>
+                    <input
+                      type="datetime-local"
+                      value={scheduledStartLocal}
+                      onChange={(e) => setScheduledStartLocal(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">Duration (minutes)</label>
+                    <input
+                      type="number"
+                      min={15}
+                      max={480}
+                      value={durationMinutes}
+                      onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                      className="w-full border border-gray-200 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={regenerateLink}
+                      onChange={(e) => setRegenerateLink(e.target.checked)}
+                    />
+                    Regenerate meeting link if session already exists
+                  </label>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => setNotesModal(null)} className="px-4 py-2 text-gray-600 font-semibold hover:bg-gray-100 rounded-xl transition-colors">

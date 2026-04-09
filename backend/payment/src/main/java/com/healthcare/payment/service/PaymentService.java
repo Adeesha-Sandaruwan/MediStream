@@ -209,7 +209,7 @@ public class PaymentService {
             payment = paymentRepository.save(payment);
             log.info("Payment status updated to COMPLETED for ID: {}", payment.getId());
 
-            // Sync appointment payment state, then attempt approval.
+            // Sync appointment payment state. Doctor approval happens in doctor-service flow.
             if (appointmentServiceClient != null) {
                 try {
                     UpdateStatusRequest statusRequest = UpdateStatusRequest.builder()
@@ -217,13 +217,6 @@ public class PaymentService {
                             .notes("Payment completed successfully")
                             .build();
                     appointmentServiceClient.updateAppointmentPaymentStatus(payment.getAppointmentId(), statusRequest);
-
-                    try {
-                        appointmentServiceClient.approveAppointment(payment.getAppointmentId());
-                        log.info("Appointment approved for appointment ID: {}", payment.getAppointmentId());
-                    } catch (Exception approvalException) {
-                        log.warn("Could not auto-approve appointment after payment completion: {}", approvalException.getMessage());
-                    }
                 } catch (Exception e) {
                     log.warn("Could not sync appointment payment status: {}", e.getMessage());
                     // Don't throw exception, payment is already completed

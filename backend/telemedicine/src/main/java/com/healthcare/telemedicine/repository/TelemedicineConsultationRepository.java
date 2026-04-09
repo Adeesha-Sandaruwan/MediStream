@@ -17,6 +17,8 @@ public interface TelemedicineConsultationRepository extends JpaRepository<Teleme
 
     Optional<TelemedicineConsultation> findByIntakeRequestId(Long intakeRequestId);
 
+    Optional<TelemedicineConsultation> findByExternalAppointmentId(String externalAppointmentId);
+
     long countByInvitedDoctorEmailIgnoreCaseAndStatus(String invitedDoctorEmail, ConsultationStatus status);
 
     List<TelemedicineConsultation> findByInvitedDoctorEmailIgnoreCaseAndStatusOrderByCreatedAtDesc(
@@ -26,9 +28,16 @@ public interface TelemedicineConsultationRepository extends JpaRepository<Teleme
 
     long countByPatientEmailIgnoreCaseAndStatus(String patientEmail, ConsultationStatus status);
 
+    long countByPatientEmailIgnoreCaseAndStatusIn(String patientEmail, Collection<ConsultationStatus> statuses);
+
     List<TelemedicineConsultation> findByPatientEmailIgnoreCaseAndStatusOrderByScheduledStartAtAsc(
             String patientEmail,
             ConsultationStatus status
+    );
+
+    List<TelemedicineConsultation> findByPatientEmailIgnoreCaseAndStatusInOrderByScheduledStartAtAsc(
+            String patientEmail,
+            Collection<ConsultationStatus> statuses
     );
 
     List<TelemedicineConsultation> findByDoctorEmailIgnoreCaseAndStatusInOrderByScheduledStartAtDesc(

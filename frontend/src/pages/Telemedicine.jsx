@@ -258,6 +258,16 @@ export default function Telemedicine() {
     });
   }, [doctorPastMeetings]);
 
+  const patientAppointmentLinkedVisits = useMemo(
+    () => invitationList.filter((inv) => inv.intakeRequestId == null),
+    [invitationList]
+  );
+
+  const doctorAppointmentLinkedVisits = useMemo(
+    () => doctorSchedules.filter((s) => s.intakeRequestId == null),
+    [doctorSchedules]
+  );
+
   const loadMyIntakes = useCallback(async () => {
     if (role !== 'PATIENT' || !token) return;
     try {
@@ -1022,6 +1032,48 @@ export default function Telemedicine() {
 
       {role === 'PATIENT' && (
         <>
+          {patientAppointmentLinkedVisits.length > 0 && (
+            <div className="mt-8 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-cyan-50 p-6 shadow-sm">
+              <h3 className="font-semibold text-gray-900">Doctor-approved appointments</h3>
+              <p className="mt-1 text-sm text-gray-600">
+                These visits came from approved paid appointments and are ready in telemedicine.
+              </p>
+              <ul className="mt-4 space-y-3">
+                {patientAppointmentLinkedVisits.map((inv) => {
+                  const canStart = isWithinMeetingWindow(inv, nowTick);
+                  const before = isBeforeWindow(inv, nowTick);
+                  return (
+                    <li key={`patient-appointment-${inv.id}`} className="rounded-lg border border-indigo-100 bg-white p-4 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-medium text-gray-900">Doctor: {inv.doctorEmail}</p>
+                        <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-800">Appointment linked</span>
+                      </div>
+                      <p className="mt-2 text-gray-700">{formatLocal(inv.scheduledStartAt)} - {formatLocal(inv.scheduledEndAt)}</p>
+                      <p className="mt-2 break-all font-mono text-xs text-gray-500">{inv.roomUrl}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={loading || !canStart}
+                          onClick={() => handlePatientStartFromInvitation(inv)}
+                          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          {before ? 'Opens at scheduled time' : canStart ? 'Join now' : 'Window ended'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(inv.roomUrl)}
+                          className="rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-50"
+                        >
+                          Copy link
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           <div className="mt-8 rounded-xl border border-gray-100 bg-white p-6 shadow-md">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <Stethoscope className="h-5 w-5 text-emerald-600" />
@@ -1284,6 +1336,15 @@ export default function Telemedicine() {
 
           {doctorMeetingsTab === 'UPCOMING' && (
             <>
+              {doctorAppointmentLinkedVisits.length > 0 && (
+                <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50/70 p-4">
+                  <p className="text-sm font-semibold text-emerald-900">Approved appointment sessions</p>
+                  <p className="mt-1 text-xs text-emerald-800">
+                    Sessions below were created automatically after paid appointment approval.
+                  </p>
+                </div>
+              )}
+
               {!doctorSchedules.length ? (
                 <div className="mt-5 rounded-xl border border-dashed border-gray-300 bg-white/70 px-4 py-6 text-sm text-gray-600">
                   No upcoming/live meetings yet. Schedule from patient requests to see them here.

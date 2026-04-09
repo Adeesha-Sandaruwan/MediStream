@@ -255,51 +255,7 @@ public class AppointmentService {
         // Send notification email to patient
         emailNotificationService.sendAppointmentStatusUpdateEmail(response);
 
-        // ── Bridge to Doctor Service ──────────────────────────────────────────────
-        // Notify the doctor service so the doctor can see and act on this appointment
-        // in their dashboard.  Try the enriched response first, then fall back to
-        // direct Feign calls to tolerate transient mapper failures.
-        try {
-            // Primary: use emails already fetched by the mapper
-            String doctorEmail  = (response.getDoctorInfo()  != null) ? response.getDoctorInfo().getEmail()  : null;
-            String patientEmail = (response.getPatientInfo() != null) ? response.getPatientInfo().getEmail() : null;
-
-            // Fallback: fetch directly when the mapper could not enrich the response
-            if (doctorEmail == null) {
-                try {
-                    DoctorServiceClient.DoctorDto doc = doctorServiceClient.getDoctor(appointment.getDoctorId());
-                    if (doc != null) doctorEmail = doc.email;
-                } catch (Exception fetchEx) {
-                    log.warn("Fallback doctor-email fetch failed: {}", fetchEx.getMessage());
-                }
-            }
-            if (patientEmail == null) {
-                try {
-                    PatientServiceClient.PatientDto pat = patientServiceClient.getPatient(appointment.getPatientId());
-                    if (pat != null) patientEmail = pat.email;
-                } catch (Exception fetchEx) {
-                    log.warn("Fallback patient-email fetch failed: {}", fetchEx.getMessage());
-                }
-            }
-
-            if (doctorEmail != null && patientEmail != null) {
-                String scheduledAt = (appointment.getAppointmentDate() != null)
-                        ? appointment.getAppointmentDate().toString()
-                        : null;
-
-                DoctorServiceClient.DoctorAppointmentNotifyRequest notifyRequest =
-                        new DoctorServiceClient.DoctorAppointmentNotifyRequest(
-                                appointment.getId(), doctorEmail, patientEmail, scheduledAt);
-
-                doctorServiceClient.notifyAppointmentApproved(notifyRequest);
-                log.info("Doctor service notified about approved appointment ID: {}", appointmentId);
-            } else {
-                log.warn("Could not notify doctor service – doctor or patient email still unknown for appointment ID: {}", appointmentId);
-            }
-        } catch (Exception e) {
-            // Non-fatal: approval already persisted; doctor service can be re-synced later
-            log.warn("Could not notify doctor service about appointment approval: {}", e.getMessage());
-        }
+        notifyDoctorServiceForAction(appointment, response, "approved");
 
         return response;
     }
@@ -327,7 +283,15 @@ public class AppointmentService {
         }
 
         appointment = appointmentRepository.save(appointment);
-        return appointmentMapper.toResponse(appointment);
+        AppointmentResponse response = appointmentMapper.toResponse(appointment);
+
+        if (request.getPaymentStatus() == AppointmentPaymentStatus.COMPLETED
+                && appointment.getStatus() == AppointmentStatus.PENDING) {
+            // Create/refresh doctor-side request once payment is completed.
+            notifyDoctorServiceForAction(appointment, response, "paid");
+        }
+
+        return response;
     }
 
     /**
@@ -527,6 +491,60 @@ public class AppointmentService {
         if (conflicts > 0) {
             throw new InvalidAppointmentException(
                     "Doctor is not available at the requested time. Please choose another time slot");
+        }
+    }
+
+    private void notifyDoctorServiceForAction(Appointment appointment, AppointmentResponse response, String reason) {
+        try {
+            String doctorEmail = (response.getDoctorInfo() != null) ? response.getDoctorInfo().getEmail() : null;
+            String patientEmail = (response.getPatientInfo() != null) ? response.getPatientInfo().getEmail() : null;
+
+            if (doctorEmail == null) {
+                try {
+                    DoctorServiceClient.DoctorDto doc = doctorServiceClient.getDoctor(appointment.getDoctorId());
+                    if (doc != null) {
+                        doctorEmail = doc.email;
+                    }
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback doctor-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+            if (patientEmail == null) {
+                try {
+                    PatientServiceClient.PatientDto pat = patientServiceClient.getPatient(appointment.getPatientId());
+                    if (pat != null) {
+                        patientEmail = pat.email;
+                    }
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback patient-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+
+            if (doctorEmail == null || patientEmail == null) {
+                log.warn("Could not notify doctor service (reason: {}) for appointment {}: missing doctor/patient email",
+                        reason,
+                        appointment.getId());
+                return;
+            }
+
+            String scheduledAt = appointment.getAppointmentDate() != null
+                    ? appointment.getAppointmentDate().toString()
+                    : null;
+
+            DoctorServiceClient.DoctorAppointmentNotifyRequest notifyRequest =
+                    new DoctorServiceClient.DoctorAppointmentNotifyRequest(
+                            appointment.getId(),
+                            doctorEmail,
+                            patientEmail,
+                            scheduledAt);
+
+            doctorServiceClient.notifyAppointmentApproved(notifyRequest);
+            log.info("Doctor service notified (reason: {}) for appointment ID: {}", reason, appointment.getId());
+        } catch (Exception e) {
+            log.warn("Could not notify doctor service (reason: {}) for appointment {}: {}",
+                    reason,
+                    appointment.getId(),
+                    e.getMessage());
         }
     }
 }

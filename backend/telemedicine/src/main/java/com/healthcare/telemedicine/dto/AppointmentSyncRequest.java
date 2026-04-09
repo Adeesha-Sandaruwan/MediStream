@@ -1,4 +1,4 @@
-package com.healthcare.doctor.dto;
+package com.healthcare.telemedicine.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,12 +7,15 @@ import lombok.NoArgsConstructor;
 
 @Data
 @Builder
-@AllArgsConstructor
 @NoArgsConstructor
-public class AppointmentDecisionDto {
-    private String status;
-    private String doctorNotes;
+@AllArgsConstructor
+public class AppointmentSyncRequest {
+    private Long appointmentId;
+    private String patientEmail;
+    private String doctorEmail;
     private String scheduledStartAt;
     private Integer durationMinutes;
+    private String doctorNotes;
     private Boolean regenerateLink;
 }
+

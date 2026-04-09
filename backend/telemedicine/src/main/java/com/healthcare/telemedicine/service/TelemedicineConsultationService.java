@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -196,6 +198,76 @@ public class TelemedicineConsultationService {
         return toResponse(fresh);
     }
 
+    @Transactional
+    public PendingConsultationDto syncFromApprovedAppointment(AppointmentSyncRequest request) {
+        if (request == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
+        }
+        if (request.getAppointmentId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "appointmentId is required");
+        }
+
+        String doctor = normalizeEmail(request.getDoctorEmail());
+        String patient = normalizeEmail(request.getPatientEmail());
+        if (doctor == null || patient == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "doctorEmail and patientEmail are required");
+        }
+
+        int durationMin = request.getDurationMinutes() != null ? request.getDurationMinutes() : DEFAULT_DURATION_MIN;
+        if (durationMin < MIN_DURATION_MIN) {
+            durationMin = MIN_DURATION_MIN;
+        }
+        if (durationMin > MAX_DURATION_MIN) {
+            durationMin = MAX_DURATION_MIN;
+        }
+
+        String appointmentKey = String.valueOf(request.getAppointmentId());
+        Instant scheduledStart = parseFlexibleInstant(request.getScheduledStartAt());
+        if (scheduledStart == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scheduledStartAt is required");
+        }
+        Instant minAllowedStart = Instant.now().plus(2, ChronoUnit.MINUTES);
+        if (scheduledStart.isBefore(minAllowedStart)) {
+            // Keep appointment-origin sessions in upcoming queues even when source time is stale.
+            scheduledStart = Instant.now().plus(15, ChronoUnit.MINUTES);
+        }
+        Instant scheduledEnd = scheduledStart.plus(durationMin, ChronoUnit.MINUTES);
+
+        TelemedicineConsultation consultation = repository.findByExternalAppointmentId(appointmentKey).orElse(null);
+        if (consultation == null) {
+            assertNoScheduleConflict(doctor, patient, scheduledStart, scheduledEnd);
+            TelemedicineConsultation created = createScheduledConsultation(
+                    patient,
+                    doctor,
+                    trimToNull(request.getDoctorNotes()),
+                    appointmentKey,
+                    scheduledStart,
+                    durationMin,
+                    null
+            );
+            return toInvitationDto(created);
+        }
+
+        consultation.setDoctorEmail(doctor);
+        consultation.setPatientEmail(patient);
+        consultation.setSymptoms(trimToNull(request.getDoctorNotes()));
+        consultation.setStatus(ConsultationStatus.SCHEDULED);
+        consultation.setScheduledStartAt(scheduledStart);
+        consultation.setScheduledEndAt(scheduledEnd);
+        consultation.setExternalAppointmentId(appointmentKey);
+        consultation.setEndedAt(null);
+        consultation.setStartedAt(null);
+
+        if (Boolean.TRUE.equals(request.getRegenerateLink())
+                || consultation.getPublicRoomId() == null
+                || consultation.getRoomUrl() == null) {
+            assignNewRoom(consultation);
+        }
+
+        TelemedicineConsultation saved = repository.saveAndFlush(consultation);
+        return toInvitationDto(saved);
+    }
+
     private boolean hasLinkedConsultation(TelemedicineIntakeRequest intake) {
         if (intake.getConsultationId() != null) {
             return true;
@@ -241,14 +313,17 @@ public class TelemedicineConsultationService {
 
     public long countInvitationsForPatient(String patientEmail) {
         String email = patientEmail.trim().toLowerCase();
-        return repository.countByPatientEmailIgnoreCaseAndStatus(email, ConsultationStatus.SCHEDULED);
+        return repository.countByPatientEmailIgnoreCaseAndStatusIn(
+                email,
+                List.of(ConsultationStatus.SCHEDULED, ConsultationStatus.LIVE)
+        );
     }
 
     public List<PendingConsultationDto> listInvitationsForPatient(String patientEmail) {
         String email = patientEmail.trim().toLowerCase();
-        return repository.findByPatientEmailIgnoreCaseAndStatusOrderByScheduledStartAtAsc(
+        return repository.findByPatientEmailIgnoreCaseAndStatusInOrderByScheduledStartAtAsc(
                         email,
-                        ConsultationStatus.SCHEDULED
+                        List.of(ConsultationStatus.SCHEDULED, ConsultationStatus.LIVE)
                 )
                 .stream()
                 .map(this::toInvitationDto)
@@ -425,6 +500,13 @@ public class TelemedicineConsultationService {
         return repository.saveAndFlush(c);
     }
 
+    private void assignNewRoom(TelemedicineConsultation consultation) {
+        String roomId = "medistream-" + UUID.randomUUID().toString().replace("-", "");
+        consultation.setPublicRoomId(roomId);
+        consultation.setRoomUrl("https://" + jitsiDomain + "/" + roomId);
+        consultation.setVideoProvider(videoProvider);
+    }
+
     private boolean canEnd(String actor, TelemedicineConsultation c) {
         boolean isPatient = actor.equalsIgnoreCase(c.getPatientEmail());
         boolean isDoctor = c.getDoctorEmail() != null && actor.equalsIgnoreCase(c.getDoctorEmail());
@@ -558,5 +640,22 @@ public class TelemedicineConsultationService {
         }
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    private static Instant parseFlexibleInstant(String raw) {
+        String value = trimToNull(raw);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException ignored) {
+            // Fallback for LocalDateTime values from internal service payloads.
+        }
+        try {
+            return LocalDateTime.parse(value).atZone(ZoneId.systemDefault()).toInstant();
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 }
