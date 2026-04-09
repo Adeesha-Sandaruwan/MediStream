@@ -16,7 +16,7 @@ public interface PatientServiceClient {
      * @param patientId Patient identifier
      * @return Patient information
      */
-    @GetMapping("/api/patients/{patientId}")
+    @GetMapping("/api/patients/public/{patientId}")
     PatientDto getPatient(@PathVariable("patientId") Long patientId);
 
     /**
@@ -24,7 +24,7 @@ public interface PatientServiceClient {
      * @param patientId Patient identifier
      * @return true if patient exists
      */
-    @GetMapping("/api/patients/{patientId}/exists")
+    @GetMapping("/api/patients/public/{patientId}/exists")
     boolean patientExists(@PathVariable("patientId") Long patientId);
 
     /**

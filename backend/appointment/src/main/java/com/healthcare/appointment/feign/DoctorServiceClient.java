@@ -16,7 +16,7 @@ public interface DoctorServiceClient {
      * @param doctorId Doctor identifier
      * @return Doctor information
      */
-    @GetMapping("/api/doctors/{doctorId}")
+    @GetMapping("/api/doctors/public/{doctorId}")
     DoctorDto getDoctor(@PathVariable("doctorId") Long doctorId);
 
     /**
@@ -24,7 +24,7 @@ public interface DoctorServiceClient {
      * @param doctorId Doctor identifier
      * @return true if doctor exists
      */
-    @GetMapping("/api/doctors/{doctorId}/exists")
+    @GetMapping("/api/doctors/public/{doctorId}/exists")
     boolean doctorExists(@PathVariable("doctorId") Long doctorId);
 
     /**
@@ -32,7 +32,7 @@ public interface DoctorServiceClient {
      * @param doctorId Doctor identifier
      * @return true if doctor is available
      */
-    @GetMapping("/api/doctors/{doctorId}/availability")
+    @GetMapping("/api/doctors/public/{doctorId}/availability")
     boolean isAvailable(@PathVariable("doctorId") Long doctorId);
 
     /**
