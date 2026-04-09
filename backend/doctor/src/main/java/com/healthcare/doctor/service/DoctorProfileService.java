@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +51,21 @@ public class DoctorProfileService {
 
     public List<DoctorProfile> getDoctorsBySpecialty(String specialty) {
         return doctorProfileRepository.findBySpecialtyIgnoreCase(specialty);
+    }
+
+    public DoctorProfile getProfileById(Long doctorId) {
+        return doctorProfileRepository.findById(doctorId)
+                .orElseThrow(() -> new NoSuchElementException("Doctor profile not found"));
+    }
+
+    public boolean existsById(Long doctorId) {
+        return doctorProfileRepository.existsById(doctorId);
+    }
+
+    public boolean isAvailableById(Long doctorId) {
+        return doctorProfileRepository.findById(doctorId)
+                .map(profile -> Boolean.TRUE.equals(profile.getVerified()))
+                .orElse(false);
     }
 
     public void deleteProfile(String email) {

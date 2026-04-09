@@ -96,7 +96,13 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
                 Patient ID
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Patient Email
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Doctor ID
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Doctor Email
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Date & Time
@@ -118,7 +124,7 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
           <tbody className="divide-y divide-gray-200">
             {appointments.length === 0 ? (
               <tr>
-                <td colSpan="8" className="px-6 py-4 text-center text-gray-500">
+                <td colSpan="10" className="px-6 py-4 text-center text-gray-500">
                   No appointments found
                 </td>
               </tr>
@@ -132,7 +138,13 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
                     {appointment.patientId}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {appointment.patientInfo?.email || '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {appointment.doctorId}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {appointment.doctorInfo?.email || '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {formatDateTime(appointment.appointmentDate)}
