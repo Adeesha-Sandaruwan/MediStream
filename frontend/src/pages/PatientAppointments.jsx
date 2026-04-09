@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { getMyPatientProfile } from '../api/patientApi';
-import { CalendarDays, AlertCircle, Loader2, Clock3, UserRound } from 'lucide-react';
+import { getMyPatientProfile, getAllVerifiedDoctors } from '../api/patientApi';
+import PaymentModal from '../components/PaymentModal';
+import { CalendarDays, AlertCircle, Loader2, Clock3, UserRound, CreditCard } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
@@ -19,10 +20,14 @@ export default function PatientAppointments() {
   const { token } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [patientId, setPatientId] = useState(null);
+  const [doctors, setDoctors] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [selectedAppointmentForPayment, setSelectedAppointmentForPayment] = useState(null);
+  const [paymentJustCompleted, setPaymentJustCompleted] = useState(false);
 
   useEffect(() => {
     const loadAppointments = async () => {
@@ -30,8 +35,12 @@ export default function PatientAppointments() {
       setError('');
 
       try {
-        const patientProfile = await getMyPatientProfile(token);
+        const [patientProfile, allDoctors] = await Promise.all([
+          getMyPatientProfile(token),
+          getAllVerifiedDoctors(token).catch(() => []),
+        ]);
         setPatientId(patientProfile.id);
+        setDoctors(allDoctors);
 
         const response = await axios.get(`${API_BASE_URL}/patient/${patientProfile.id}`, {
           headers: {
@@ -54,15 +63,28 @@ export default function PatientAppointments() {
     }
   }, [token]);
 
-  const hasPaymentPending = (appointment) => appointment.status === 'PENDING';
+  const getDoctorInfo = (doctorId) => {
+    const doctor = doctors.find((d) => d.id === doctorId || d.id === Number(doctorId));
+    if (doctor) {
+      const name = `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || `Doctor ${doctorId}`;
+      const fee = doctor.consultationFee ? parseFloat(doctor.consultationFee) : 5000;
+      return { name, fee };
+    }
+    return { name: `Doctor ${doctorId}`, fee: 5000 };
+  };
+
+  const isPaymentCompleted = (appointment) => appointment.paymentStatus === 'COMPLETED';
+  const hasPaymentPending = (appointment) => appointment.status === 'PENDING' && !isPaymentCompleted(appointment);
+  const isAwaitingAdminApproval = (appointment) => appointment.status === 'PENDING' && isPaymentCompleted(appointment);
   const canDeleteAppointment = (appointment) => ['PENDING', 'APPROVED'].includes(appointment.status);
-  const canPayAppointment = (appointment) => appointment.status === 'PENDING';
+  const canPayAppointment = (appointment) => appointment.status === 'PENDING' && !isPaymentCompleted(appointment) && Boolean(patientId);
   const activeAppointments = appointments.filter((appointment) => appointment.status !== 'CANCELLED');
   const cancelledAppointments = appointments.filter((appointment) => appointment.status === 'CANCELLED');
 
   const handlePayNow = (appointment) => {
-    // Placeholder until payment service integration is implemented.
-    window.alert(`Payment flow will be integrated soon for appointment #${appointment.id}.`);
+    // Open payment modal for the appointment
+    setSelectedAppointmentForPayment(appointment);
+    setPaymentModalOpen(true);
   };
 
   const handleDeleteAppointment = async (appointment) => {
@@ -180,6 +202,11 @@ export default function PatientAppointments() {
                           Pending Payment
                         </span>
                       )}
+                      {isAwaitingAdminApproval(appointment) && (
+                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-blue-50 text-blue-700 border border-blue-200">
+                          Paid - Awaiting Approval
+                        </span>
+                      )}
                       <button
                         type="button"
                         onClick={() => handlePayNow(appointment)}
@@ -245,6 +272,51 @@ export default function PatientAppointments() {
           )}
         </>
       )}
+
+      {/* Payment Modal */}
+      {selectedAppointmentForPayment && (() => {
+        const { name: doctorName, fee: consultationFee } = getDoctorInfo(selectedAppointmentForPayment.doctorId);
+        return (
+          <PaymentModal
+            isOpen={paymentModalOpen}
+            onClose={() => {
+              setPaymentModalOpen(false);
+              setSelectedAppointmentForPayment(null);
+              // Only reload if payment was NOT just completed (to avoid overwriting
+              // the optimistic local-state update we already applied in onSuccess).
+              if (!paymentJustCompleted && token) {
+                window.location.reload();
+              }
+              setPaymentJustCompleted(false);
+            }}
+            appointmentId={selectedAppointmentForPayment.id}
+            patientId={patientId}
+            doctorId={selectedAppointmentForPayment.doctorId}
+            amount={consultationFee}
+            doctorName={doctorName}
+            onSuccess={(paymentIntent, meta = {}) => {
+              if (meta.syncError) {
+                // Stripe charged the card but backend failed to record it
+                setError(
+                  `Your card was charged (Stripe ref: ${paymentIntent.id}), but our server could not confirm the payment. ` +
+                  `Please save that reference and contact support if your appointment is not confirmed shortly.`
+                );
+              } else {
+                // Full success — mark payment as completed locally so badge updates immediately.
+                setAppointments((prev) => prev.map((item) => (
+                  item.id === selectedAppointmentForPayment.id
+                    ? { ...item, paymentStatus: 'COMPLETED', status: 'APPROVED' }
+                    : item
+                )));
+                setNotice(`Payment successful! Your appointment #${selectedAppointmentForPayment.id} has been paid. Awaiting admin approval.`);
+              }
+              setPaymentJustCompleted(true);
+              setPaymentModalOpen(false);
+              setSelectedAppointmentForPayment(null);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

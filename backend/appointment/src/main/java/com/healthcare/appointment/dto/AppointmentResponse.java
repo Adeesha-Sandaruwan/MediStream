@@ -1,6 +1,7 @@
 package com.healthcare.appointment.dto;
 
 import com.healthcare.appointment.entity.AppointmentStatus;
+import com.healthcare.appointment.entity.AppointmentPaymentStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -33,6 +34,8 @@ public class AppointmentResponse {
     private String notes;
 
     private AppointmentStatus status;
+
+    private AppointmentPaymentStatus paymentStatus;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime createdAt;

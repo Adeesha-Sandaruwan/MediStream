@@ -1,5 +1,6 @@
 package com.healthcare.doctor.config;
 
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,7 +38,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         jwt = authHeader.substring(7);
-        userEmail = jwtService.extractUsername(jwt);
+
+        try {
+            userEmail = jwtService.extractUsername(jwt);
+        } catch (JwtException | IllegalArgumentException ex) {
+            // Invalid/expired token: continue without authentication so Spring Security
+            // returns 401/403 instead of a 500 error.
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             if (jwtService.isTokenValid(jwt)) {

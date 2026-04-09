@@ -106,6 +106,15 @@ export const decideAppointment = async (token, appointmentId, payload) => {
   return response.json();
 };
 
+export const completeAppointment = async (token, appointmentId) => {
+  const response = await fetch(`${API_BASE}/appointments/${appointmentId}/complete`, {
+    method: 'PATCH',
+    headers: buildHeaders(token),
+  });
+  if (!response.ok) throw new Error(await parseError(response, 'Failed to complete appointment'));
+  return response.json();
+};
+
 export const getMyPrescriptions = async (token) => {
   const response = await fetch(`${API_BASE}/prescriptions/mine`, {
     method: 'GET',

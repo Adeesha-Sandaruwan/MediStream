@@ -82,6 +82,7 @@ public class AppointmentMapper {
                 .reason(appointment.getReason())
                 .notes(appointment.getNotes())
                 .status(appointment.getStatus())
+                .paymentStatus(appointment.getPaymentStatus())
                 .createdAt(appointment.getCreatedAt())
                 .updatedAt(appointment.getUpdatedAt())
                 .cancelledAt(appointment.getCancelledAt())

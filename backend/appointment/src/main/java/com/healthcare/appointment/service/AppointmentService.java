@@ -3,7 +3,9 @@ package com.healthcare.appointment.service;
 import com.healthcare.appointment.dto.AppointmentCreateRequest;
 import com.healthcare.appointment.dto.AppointmentResponse;
 import com.healthcare.appointment.dto.AppointmentUpdateRequest;
+import com.healthcare.appointment.dto.PaymentStatusUpdateRequest;
 import com.healthcare.appointment.entity.Appointment;
+import com.healthcare.appointment.entity.AppointmentPaymentStatus;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.exception.AppointmentNotFoundException;
 import com.healthcare.appointment.exception.InvalidAppointmentException;
@@ -217,8 +219,8 @@ public class AppointmentService {
     }
 
     /**
-     * Approve an appointment (Doctor action)
-     * 
+     * Approve an appointment (Admin action after payment completion)
+     *
      * @param appointmentId Appointment identifier
      * @return Updated appointment response
      * @throws AppointmentNotFoundException if not found
@@ -236,12 +238,124 @@ public class AppointmentService {
                     appointment.getStatus().getDisplayName());
         }
 
+        if (appointment.getPaymentStatus() != AppointmentPaymentStatus.COMPLETED) {
+            throw new InvalidAppointmentException(
+                    "Appointment payment must be completed before admin approval. Current payment status: " +
+                            appointment.getPaymentStatus());
+        }
+
         appointment.setStatus(AppointmentStatus.APPROVED);
         appointment = appointmentRepository.save(appointment);
 
         log.info("Appointment approved successfully");
 
-        // Send notification to patient
+        // Build response (enriched with patient/doctor info from their services)
+        AppointmentResponse response = appointmentMapper.toResponse(appointment);
+
+        // Send notification email to patient
+        emailNotificationService.sendAppointmentStatusUpdateEmail(response);
+
+        // ── Bridge to Doctor Service ──────────────────────────────────────────────
+        // Notify the doctor service so the doctor can see and act on this appointment
+        // in their dashboard.  Try the enriched response first, then fall back to
+        // direct Feign calls to tolerate transient mapper failures.
+        try {
+            // Primary: use emails already fetched by the mapper
+            String doctorEmail  = (response.getDoctorInfo()  != null) ? response.getDoctorInfo().getEmail()  : null;
+            String patientEmail = (response.getPatientInfo() != null) ? response.getPatientInfo().getEmail() : null;
+
+            // Fallback: fetch directly when the mapper could not enrich the response
+            if (doctorEmail == null) {
+                try {
+                    DoctorServiceClient.DoctorDto doc = doctorServiceClient.getDoctor(appointment.getDoctorId());
+                    if (doc != null) doctorEmail = doc.email;
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback doctor-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+            if (patientEmail == null) {
+                try {
+                    PatientServiceClient.PatientDto pat = patientServiceClient.getPatient(appointment.getPatientId());
+                    if (pat != null) patientEmail = pat.email;
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback patient-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+
+            if (doctorEmail != null && patientEmail != null) {
+                String scheduledAt = (appointment.getAppointmentDate() != null)
+                        ? appointment.getAppointmentDate().toString()
+                        : null;
+
+                DoctorServiceClient.DoctorAppointmentNotifyRequest notifyRequest =
+                        new DoctorServiceClient.DoctorAppointmentNotifyRequest(
+                                appointment.getId(), doctorEmail, patientEmail, scheduledAt);
+
+                doctorServiceClient.notifyAppointmentApproved(notifyRequest);
+                log.info("Doctor service notified about approved appointment ID: {}", appointmentId);
+            } else {
+                log.warn("Could not notify doctor service – doctor or patient email still unknown for appointment ID: {}", appointmentId);
+            }
+        } catch (Exception e) {
+            // Non-fatal: approval already persisted; doctor service can be re-synced later
+            log.warn("Could not notify doctor service about appointment approval: {}", e.getMessage());
+        }
+
+        return response;
+    }
+
+    /**
+     * Sync payment status from the payment service.
+     */
+    public AppointmentResponse updatePaymentStatus(Long appointmentId, PaymentStatusUpdateRequest request) {
+        log.info("Updating payment status for appointment ID: {} to {}", appointmentId, request.getPaymentStatus());
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+
+        if (request.getPaymentStatus() == null) {
+            throw new InvalidAppointmentException("Payment status is required");
+        }
+
+        appointment.setPaymentStatus(request.getPaymentStatus());
+
+        if (request.getPaymentStatus() == AppointmentPaymentStatus.REFUNDED
+                && appointment.getStatus() == AppointmentStatus.APPROVED) {
+            appointment.setStatus(AppointmentStatus.CANCELLED);
+            appointment.setCancelledAt(LocalDateTime.now());
+            appointment.setCancelledReason("Appointment payment refunded");
+        }
+
+        appointment = appointmentRepository.save(appointment);
+        return appointmentMapper.toResponse(appointment);
+    }
+
+    /**
+     * Mark an appointment as completed
+     *
+     * @param appointmentId Appointment identifier
+     * @return Updated appointment response
+     * @throws AppointmentNotFoundException if not found
+     * @throws InvalidAppointmentException if appointment cannot be completed
+     */
+    public AppointmentResponse completeAppointment(Long appointmentId) {
+        log.info("Completing appointment with ID: {}", appointmentId);
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+
+        if (!appointment.getStatus().equals(AppointmentStatus.APPROVED)) {
+            throw new InvalidAppointmentException(
+                    "Only APPROVED appointments can be marked as completed. Current status: " +
+                    appointment.getStatus().getDisplayName());
+        }
+
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        appointment = appointmentRepository.save(appointment);
+
+        log.info("Appointment completed successfully");
+
+        // Send completion notification to patient
         AppointmentResponse response = appointmentMapper.toResponse(appointment);
         emailNotificationService.sendAppointmentStatusUpdateEmail(response);
 

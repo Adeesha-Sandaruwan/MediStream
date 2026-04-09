@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class DoctorAppointmentRequestDto {
     private Long appointmentId;
+    private String doctorEmail;   // used by internal service-to-service calls
     private String patientEmail;
     private String scheduledAt;
 }
