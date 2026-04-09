@@ -15,6 +15,7 @@ import DoctorAppointments from './pages/DoctorAppointments';
 import DoctorPrescriptions from './pages/DoctorPrescriptions';
 import PatientDoctorSearch from './pages/PatientDoctorSearch';
 import PatientPrescriptions from './pages/PatientPrescriptions';
+import PatientAppointments from './pages/PatientAppointments';
 import { Activity, LogOut } from 'lucide-react';
 
 const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
@@ -37,15 +38,15 @@ const Navbar = () => {
     const { logout, role } = useAuth();
 
     return (
-        <nav className="sticky top-0 z-50 w-full bg-gradient-to-r from-indigo-900 via-blue-900 to-indigo-950 text-white shadow-xl border-b border-white/10 backdrop-blur-md bg-opacity-95">
+        <nav className="sticky top-0 z-50 w-full bg-linear-to-r from-indigo-900 via-blue-900 to-indigo-950 text-white shadow-xl border-b border-white/10 backdrop-blur-md bg-opacity-95">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between items-center h-20">
                     <div className="flex items-center space-x-4">
-                        <div className="bg-gradient-to-br from-blue-400 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
+                        <div className="bg-linear-to-br from-blue-400 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
                             <Activity size={24} className="text-white" />
                         </div>
                         <div className="flex flex-col justify-center">
-                            <span className="text-2xl font-black tracking-wide leading-none bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100">
+                            <span className="text-2xl font-black tracking-wide leading-none bg-clip-text text-transparent bg-linear-to-r from-white to-blue-100">
                                 MediStream
                             </span>
                             <span className="text-[11px] font-bold text-blue-300 tracking-[0.2em] uppercase mt-1">
@@ -119,6 +120,8 @@ export default function App() {
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 
                 <Route path="/patient-doctors" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDoctorSearch /></ProtectedRoute>} />
+
+                <Route path="/patient-appointments" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientAppointments /></ProtectedRoute>} />
 
                 <Route path="/patient-prescriptions" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientPrescriptions /></ProtectedRoute>} />
                 

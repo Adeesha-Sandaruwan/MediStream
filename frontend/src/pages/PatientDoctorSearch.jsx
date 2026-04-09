@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { getAllVerifiedDoctors, getDoctorAvailability } from '../api/patientApi';
+import { getAllVerifiedDoctors, getDoctorAvailability, getMyPatientProfile } from '../api/patientApi';
 import { Search, Loader2, UserRound, Award, Phone, Building, AlertCircle, Calendar, Clock, X } from 'lucide-react';
 
 const PatientDoctorSearch = () => {
     const { token } = useAuth();
+    const navigate = useNavigate();
     const [doctors, setDoctors] = useState([]);
     const [filteredDoctors, setFilteredDoctors] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +17,12 @@ const PatientDoctorSearch = () => {
     const [selectedDoctor, setSelectedDoctor] = useState(null);
     const [availabilitySlots, setAvailabilitySlots] = useState([]);
     const [isAvailabilityLoading, setIsAvailabilityLoading] = useState(false);
+
+    const isBookableSlot = (slot) => {
+        const slotType = (slot?.slotType || 'CONSULTATION').toUpperCase();
+        const active = slot?.active !== false;
+        return active && slotType !== 'LEAVE';
+    };
 
     useEffect(() => {
         fetchDoctors();
@@ -60,13 +67,38 @@ const PatientDoctorSearch = () => {
         setIsAvailabilityLoading(true);
         try {
             const slots = await getDoctorAvailability(token, doctor.email);
-            const activeSlots = slots.filter(slot => slot.active);
+            const activeSlots = slots.filter(isBookableSlot);
             setAvailabilitySlots(activeSlots);
         } catch (err) {
             console.error(err);
             setAvailabilitySlots([]);
         } finally {
             setIsAvailabilityLoading(false);
+        }
+    };
+
+    const handleBookAppointment = async (doctor) => {
+        try {
+            const patientProfile = await getMyPatientProfile(token);
+            const slots = await getDoctorAvailability(token, doctor.email);
+            const activeSlots = slots.filter(isBookableSlot);
+
+            if (activeSlots.length === 0) {
+                setError('This doctor has no active clinic schedule yet. Please choose another doctor or try later.');
+                return;
+            }
+
+            navigate('/appointments', {
+                state: {
+                    openCreateForm: true,
+                    patientId: patientProfile.id,
+                    doctorId: doctor.id,
+                    doctorAvailability: activeSlots,
+                },
+            });
+        } catch (err) {
+            console.error(err);
+            setError('Unable to open the appointment form right now. Please try again later.');
         }
     };
 
@@ -146,7 +178,7 @@ const PatientDoctorSearch = () => {
                             <div className="p-6 flex-1">
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex items-center space-x-4">
-                                        <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm shrink-0">
+                                        <div className="w-16 h-16 bg-linear-to-br from-indigo-100 to-blue-100 rounded-full flex items-center justify-center border-2 border-white shadow-sm shrink-0">
                                             <UserRound size={32} className="text-indigo-600" />
                                         </div>
                                         <div>
@@ -185,7 +217,10 @@ const PatientDoctorSearch = () => {
                                 <div className="text-lg font-black text-emerald-700">
                                     LKR {doctor.consultationFee || '0.00'} <span className="text-xs text-gray-500 font-medium">/ session</span>
                                 </div>
-                                <button disabled className="flex items-center px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                <button
+                                    onClick={() => handleBookAppointment(doctor)}
+                                    className="flex items-center px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                >
                                     <Calendar className="mr-2" size={16} /> Book Appointment
                                 </button>
                             </div>

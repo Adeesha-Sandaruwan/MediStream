@@ -4,15 +4,18 @@ import axios from 'axios';
 import AppointmentTable from '../components/appointmentTable';
 import AppointmentForm from '../components/appointmentForm';
 import image from '../assets/land.png';
+import { useLocation, useNavigate } from 'react-router-dom';
 
-const API_BASE_URL = 'http://localhost:8083/api/v1/appointments';
+const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 const Appointments = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(Boolean(location.state?.openCreateForm));
   const [editingAppointment, setEditingAppointment] = useState(null);
   
   // Filter states
@@ -77,6 +80,23 @@ const Appointments = () => {
     fetchAppointments();
   }, [fetchAppointments]);
 
+  useEffect(() => {
+    if (!location.state?.openCreateForm) {
+      return;
+    }
+
+    setShowForm(true);
+    setEditingAppointment({
+      patientId: location.state?.patientId || '',
+      doctorId: location.state?.doctorId || '',
+      doctorAvailability: location.state?.doctorAvailability || [],
+      appointmentDate: '',
+      durationMinutes: '30',
+      reason: '',
+      notes: ''
+    });
+  }, [location.state]);
+
   const handleRefresh = () => {
     fetchAppointments();
   };
@@ -98,6 +118,12 @@ const Appointments = () => {
 
   const handleFormSave = () => {
     handleFormClose();
+
+    if (location.state?.openCreateForm) {
+      navigate('/patient-appointments', { replace: true });
+      return;
+    }
+
     fetchAppointments();
   };
 

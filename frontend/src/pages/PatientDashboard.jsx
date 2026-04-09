@@ -76,18 +76,21 @@ const PatientDashboard = () => {
                     </Link>
                 </div>
 
-                {/* Feature 4: Appointments (For your teammate) */}
-                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 opacity-80">
+                {/* Feature 4: Appointments */}
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
                     <div className="flex items-center mb-4">
                         <div className="p-3 bg-green-100 text-green-600 rounded-lg">
                             <Calendar size={24} />
                         </div>
                         <h2 className="ml-4 text-xl font-semibold text-gray-800">Appointments</h2>
                     </div>
-                    <p className="text-gray-600 mb-6 h-12">Book and manage your in-person or online appointments.</p>
-                    <button disabled className="block w-full text-center bg-gray-200 text-gray-500 font-medium py-2 px-4 rounded-lg cursor-not-allowed">
-                        Coming Soon
-                    </button>
+                    <p className="text-gray-600 mb-6 h-12">View the appointments you have already booked and track those awaiting payment.</p>
+                    <Link
+                        to="/patient-appointments"
+                        className="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg transition-colors shadow-sm"
+                    >
+                        View Appointments
+                    </Link>
                 </div>
 
                 {/* Feature 5: Telemedicine */}
