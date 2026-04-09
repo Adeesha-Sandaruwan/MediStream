@@ -4,12 +4,13 @@ import axios from 'axios';
 import AppointmentTable from '../components/appointmentTable';
 import AppointmentForm from '../components/appointmentForm';
 import image from '../assets/land.png';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 const Appointments = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -117,6 +118,12 @@ const Appointments = () => {
 
   const handleFormSave = () => {
     handleFormClose();
+
+    if (location.state?.openCreateForm) {
+      navigate('/patient-appointments', { replace: true });
+      return;
+    }
+
     fetchAppointments();
   };
 

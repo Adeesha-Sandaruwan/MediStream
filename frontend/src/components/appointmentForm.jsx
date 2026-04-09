@@ -45,61 +45,53 @@ const slotAppliesToDate = (slot, date) => {
   return DAY_INDEX[toUpper(slot?.dayOfWeek)] === date.getDay();
 };
 
-const getNextOccurrenceIso = (dayOfWeek, startTime) => {
-  const dayIndex = DAY_INDEX[toUpper(dayOfWeek)];
-  if (dayIndex === undefined) return null;
+const buildDateOptions = (slots, daysAhead = 30) => {
+  const options = [];
+  const seen = new Set();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const start = normalizeTime(startTime);
-  if (!start) return null;
+  for (let i = 0; i < daysAhead; i += 1) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
 
-  const [h, m] = start.split(':').map(Number);
-  const now = new Date();
+    const matchingSlots = slots.filter((slot) => slotAppliesToDate(slot, date));
+    if (matchingSlots.length === 0) continue;
 
-  for (let i = 0; i <= 7; i += 1) {
-    const candidate = new Date();
-    candidate.setHours(h, m, 0, 0);
-    candidate.setDate(candidate.getDate() + i);
+    const key = dateKey(date);
+    if (seen.has(key)) continue;
+    seen.add(key);
 
-    if (candidate.getDay() !== dayIndex) continue;
-    if (candidate <= now) continue;
-
-    return `${dateKey(candidate)}T${start}`;
+    options.push({
+      value: key,
+      label: date.toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }),
+    });
   }
 
-  return null;
+  return options;
 };
 
-const buildSlotOptions = (slots) => {
-  const now = new Date();
+const buildTimeOptions = (slots, selectedDate) => {
+  if (!selectedDate) return [];
+
+  const date = new Date(`${selectedDate}T00:00`);
+  if (Number.isNaN(date.getTime())) return [];
 
   return slots
+    .filter((slot) => slotAppliesToDate(slot, date))
     .map((slot, index) => {
       const start = normalizeTime(slot.startTime);
       const end = normalizeTime(slot.endTime);
       if (!start || !end) return null;
 
-      let appointmentDate = null;
-      let dayLabel = toUpper(slot.dayOfWeek) || '';
-
-      if (slot.specificDate) {
-        const candidate = new Date(`${slot.specificDate}T${start}`);
-        if (Number.isNaN(candidate.getTime()) || candidate <= now) return null;
-        appointmentDate = `${slot.specificDate}T${start}`;
-        dayLabel = candidate.toLocaleDateString(undefined, { weekday: 'long' }).toUpperCase();
-      } else {
-        appointmentDate = getNextOccurrenceIso(slot.dayOfWeek, start);
-      }
-
-      if (!appointmentDate) return null;
-
       return {
-        value: `${slot.id || index}|${appointmentDate}`,
-        appointmentDate,
-        label: `${dayLabel} ${start} - ${end}`,
+        value: `${start}|${index}`,
+        appointmentDate: `${selectedDate}T${start}`,
+        label: `${start} - ${end}`,
       };
     })
     .filter(Boolean)
-    .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate));
+    .sort((a, b) => a.label.localeCompare(b.label));
 };
 
 const fitsDoctorAvailability = (slots, isoDateTime, durationMinutes) => {
@@ -134,11 +126,15 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
 
   const doctorAvailability = (appointment?.doctorAvailability || []).filter(slotIsBookable);
   const isConstrainedBooking = Boolean(!appointment?.id && doctorAvailability.length > 0);
-  const availableSlots = isConstrainedBooking ? buildSlotOptions(doctorAvailability) : [];
+  const availableDates = isConstrainedBooking ? buildDateOptions(doctorAvailability) : [];
+  const availableTimes = isConstrainedBooking ? buildTimeOptions(doctorAvailability, selectedDate) : [];
+  const selectedDateLabel = availableDates.find((option) => option.value === selectedDate)?.label || '';
+  const selectedTimeLabel = availableTimes.find((option) => option.value === selectedTime)?.label || '';
 
   useEffect(() => {
     if (appointment) {
@@ -160,28 +156,37 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
 
   useEffect(() => {
     if (!isConstrainedBooking) return;
-    if (!selectedSlot && availableSlots.length > 0) {
-      setSelectedSlot(availableSlots[0].value);
+    if (!selectedDate && availableDates.length > 0) {
+      setSelectedDate(availableDates[0].value);
     }
-  }, [availableSlots, isConstrainedBooking, selectedSlot]);
+  }, [availableDates, isConstrainedBooking, selectedDate]);
 
   useEffect(() => {
     if (!isConstrainedBooking) return;
-    if (!selectedSlot) return;
+    if (!selectedDate) return;
 
-    const option = availableSlots.find((slot) => slot.value === selectedSlot);
-    if (!option) {
-      if (availableSlots.length > 0) {
-        setSelectedSlot(availableSlots[0].value);
-      }
+    if (availableTimes.length === 0) {
+      setSelectedTime('');
       return;
     }
+
+    if (!availableTimes.some((opt) => opt.value === selectedTime)) {
+      setSelectedTime(availableTimes[0].value);
+    }
+  }, [availableTimes, isConstrainedBooking, selectedDate, selectedTime]);
+
+  useEffect(() => {
+    if (!isConstrainedBooking) return;
+    if (!selectedDate || !selectedTime) return;
+
+    const option = availableTimes.find((time) => time.value === selectedTime);
+    if (!option) return;
 
     setFormData((prev) => ({
       ...prev,
       appointmentDate: option.appointmentDate,
     }));
-  }, [availableSlots, isConstrainedBooking, selectedSlot]);
+  }, [availableTimes, isConstrainedBooking, selectedDate, selectedTime]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -269,7 +274,7 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
       <div className="relative top-20 mx-auto p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-gray-900">
-            {appointment ? 'Edit Appointment' : 'Create New Appointment'}
+            {isConstrainedBooking ? 'Book Appointment' : (appointment ? 'Edit Appointment' : 'Create New Appointment')}
           </h3>
           <button
             onClick={onCancel}
@@ -322,7 +327,7 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
 
           {isConstrainedBooking && (
             <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded text-sm text-indigo-700">
-              Pick from this doctor's real available slots.
+              Select a date within the next 30 days and then choose one of the doctor's available times for that day.
             </div>
           )}
           
@@ -330,24 +335,48 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
             <>
               <div className="mb-4">
                 <label className="block text-gray-700 text-sm font-bold mb-2">
-                  Available Slot *
+                  Appointment Date *
                 </label>
                 <select
-                  value={selectedSlot}
-                  onChange={(e) => setSelectedSlot(e.target.value)}
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
                   className={`shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
                     errors.appointmentDate ? 'border-red-500' : ''
                   }`}
                 >
-                  {availableSlots.length === 0 && <option value="">No available slots</option>}
-                  {availableSlots.map((slot) => (
-                    <option key={slot.value} value={slot.value}>{slot.label}</option>
+                  {availableDates.length === 0 && <option value="">No available dates</option>}
+                  {availableDates.map((dateOpt) => (
+                    <option key={dateOpt.value} value={dateOpt.value}>{dateOpt.label}</option>
                   ))}
                 </select>
                 {errors.appointmentDate && (
                   <p className="text-red-500 text-xs italic">{errors.appointmentDate}</p>
                 )}
               </div>
+
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">
+                  Appointment Time *
+                </label>
+                <select
+                  value={selectedTime}
+                  onChange={(e) => setSelectedTime(e.target.value)}
+                  className={`shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline ${
+                    errors.appointmentDate ? 'border-red-500' : ''
+                  }`}
+                >
+                  {availableTimes.length === 0 && <option value="">No available times for selected date</option>}
+                  {availableTimes.map((timeOpt) => (
+                    <option key={timeOpt.value} value={timeOpt.value}>{timeOpt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedDateLabel && selectedTimeLabel && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                  Selected appointment: {selectedDateLabel} at {selectedTimeLabel}
+                </div>
+              )}
             </>
           ) : (
             <div className="mb-4">
@@ -441,7 +470,7 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
               disabled={isLoading}
               className="px-4 py-2 text-white bg-blue-500 rounded hover:bg-blue-600 focus:outline-none disabled:opacity-50"
             >
-              {isLoading ? 'Saving...' : (appointment ? 'Update' : 'Create')}
+              {isLoading ? 'Saving...' : (isConstrainedBooking ? 'Book Appointment' : (appointment ? 'Update' : 'Create'))}
             </button>
           </div>
         </form>
