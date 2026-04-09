@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, Link } from 'react-router-dom';
+import { Routes, Route, Navigate, Link, NavLink } from 'react-router-dom';
 import Auth from './pages/Auth';
 import MedicalProfile from './pages/MedicalProfile';
 import PatientDashboard from './pages/PatientDashboard';
@@ -37,10 +37,36 @@ const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
 const Navbar = () => {
     const { logout, role } = useAuth();
 
+    const navItemsByRole = {
+        PATIENT: [
+            { to: '/patient-dashboard', label: 'Dashboard' },
+            { to: '/patient-appointments', label: 'My Appointments' },
+            { to: '/patient-doctors', label: 'Find Doctors' },
+            { to: '/patient-prescriptions', label: 'Prescriptions' },
+            { to: '/profile', label: 'Profile' },
+            { to: '/reports', label: 'Reports' },
+        ],
+        DOCTOR: [
+            { to: '/doctor-dashboard', label: 'Dashboard' },
+            { to: '/doctor-appointments', label: 'Appointments' },
+            { to: '/doctor-availability', label: 'Availability' },
+            { to: '/doctor-prescriptions', label: 'Prescriptions' },
+            { to: '/doctor-profile', label: 'Profile' },
+        ],
+        ADMIN: [
+            { to: '/admin-dashboard', label: 'Dashboard' },
+            { to: '/appointments', label: 'Appointments' },
+            { to: '/notifications', label: 'Notifications' },
+            { to: '/admin-dashboard', label: 'System Settings' },
+        ],
+    };
+
+    const navItems = navItemsByRole[role] || [];
+
     return (
         <nav className="sticky top-0 z-50 w-full bg-linear-to-r from-indigo-900 via-blue-900 to-indigo-950 text-white shadow-xl border-b border-white/10 backdrop-blur-md bg-opacity-95">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-20">
+                <div className="flex flex-col gap-3 py-4 md:h-20 md:flex-row md:items-center md:justify-between md:py-0">
                     <div className="flex items-center space-x-4">
                         <div className="bg-linear-to-br from-blue-400 to-indigo-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/30">
                             <Activity size={24} className="text-white" />
@@ -52,6 +78,20 @@ const Navbar = () => {
                             <span className="text-[11px] font-bold text-blue-300 tracking-[0.2em] uppercase mt-1">
                                 {role || 'USER'} PORTAL
                             </span>
+                        </div>
+                    </div>
+
+                    <div className="flex-1 overflow-x-auto md:px-6">
+                        <div className="flex items-center gap-2 min-w-max">
+                            {navItems.map((item) => (
+                                <NavLink
+                                    key={`${item.to}-${item.label}`}
+                                    to={item.to}
+                                    className={({ isActive }) => `px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${isActive ? 'bg-white/20 text-white border border-white/25' : 'text-blue-100 hover:text-white hover:bg-white/10 border border-transparent'}`}
+                                >
+                                    {item.label}
+                                </NavLink>
+                            ))}
                         </div>
                     </div>
 
