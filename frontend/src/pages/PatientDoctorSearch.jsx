@@ -88,7 +88,7 @@ const PatientDoctorSearch = () => {
                 return;
             }
 
-            navigate('/appointments', {
+            navigate('/patient-book-appointment', {
                 state: {
                     openCreateForm: true,
                     patientId: patientProfile.id,

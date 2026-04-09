@@ -57,6 +57,8 @@ export default function PatientAppointments() {
   const hasPaymentPending = (appointment) => appointment.status === 'PENDING';
   const canDeleteAppointment = (appointment) => ['PENDING', 'APPROVED'].includes(appointment.status);
   const canPayAppointment = (appointment) => appointment.status === 'PENDING';
+  const activeAppointments = appointments.filter((appointment) => appointment.status !== 'CANCELLED');
+  const cancelledAppointments = appointments.filter((appointment) => appointment.status === 'CANCELLED');
 
   const handlePayNow = (appointment) => {
     // Placeholder until payment service integration is implemented.
@@ -86,8 +88,10 @@ export default function PatientAppointments() {
         },
       });
 
-      setAppointments((prev) => prev.filter((item) => item.id !== appointment.id));
-      setNotice(`Appointment #${appointment.id} was deleted successfully.`);
+      setAppointments((prev) => prev.map((item) => (
+        item.id === appointment.id ? { ...item, status: 'CANCELLED' } : item
+      )));
+      setNotice(`Appointment #${appointment.id} was moved to Cancelled Appointments.`);
     } catch (err) {
       console.error(err);
       const message = err.response?.data?.message || 'Failed to delete appointment. Please try again.';
@@ -144,57 +148,102 @@ export default function PatientAppointments() {
           <p className="text-gray-500">You have not booked any appointments yet.</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {appointments.map((appointment) => (
-            <div key={appointment.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 text-gray-900 font-bold text-lg">
-                    <CalendarDays className="text-indigo-600" size={18} />
-                    Appointment #{appointment.id}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
-                    <span className="inline-flex items-center gap-1">
-                      <UserRound size={14} /> Doctor ID: {appointment.doctorId}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Clock3 size={14} /> {new Date(appointment.appointmentDate).toLocaleString()}
-                    </span>
-                    <span>{appointment.durationMinutes} min</span>
-                  </div>
-                  <p className="mt-3 text-gray-700"><span className="font-semibold">Reason:</span> {appointment.reason}</p>
-                </div>
+        <>
+          {activeAppointments.length > 0 ? (
+            <div className="space-y-4">
+              {activeAppointments.map((appointment) => (
+                <div key={appointment.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-gray-900 font-bold text-lg">
+                        <CalendarDays className="text-indigo-600" size={18} />
+                        Appointment #{appointment.id}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
+                        <span className="inline-flex items-center gap-1">
+                          <UserRound size={14} /> Doctor ID: {appointment.doctorId}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3 size={14} /> {new Date(appointment.appointmentDate).toLocaleString()}
+                        </span>
+                        <span>{appointment.durationMinutes} min</span>
+                      </div>
+                      <p className="mt-3 text-gray-700"><span className="font-semibold">Reason:</span> {appointment.reason}</p>
+                    </div>
 
-                <div className="flex flex-col items-start md:items-end gap-2">
-                  <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${statusStyles[appointment.status] || 'bg-gray-100 text-gray-700'}`}>
-                    {appointment.status}
-                  </span>
-                  {hasPaymentPending(appointment) && (
-                    <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
-                      Pending Payment
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handlePayNow(appointment)}
-                    disabled={!canPayAppointment(appointment)}
-                    className="mt-1 inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-indigo-300"
-                  >
-                    Pay Now
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAppointment(appointment)}
-                    disabled={!canDeleteAppointment(appointment) || deletingId === appointment.id}
-                    className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-rose-300"
-                  >
-                    {deletingId === appointment.id ? 'Deleting...' : 'Delete Appointment'}
-                  </button>
+                    <div className="flex flex-col items-start md:items-end gap-2">
+                      <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${statusStyles[appointment.status] || 'bg-gray-100 text-gray-700'}`}>
+                        {appointment.status}
+                      </span>
+                      {hasPaymentPending(appointment) && (
+                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-amber-50 text-amber-700 border border-amber-200">
+                          Pending Payment
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handlePayNow(appointment)}
+                        disabled={!canPayAppointment(appointment)}
+                        className="mt-1 inline-flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-indigo-300"
+                      >
+                        Pay Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAppointment(appointment)}
+                        disabled={!canDeleteAppointment(appointment) || deletingId === appointment.id}
+                        className="inline-flex items-center justify-center rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-rose-300"
+                      >
+                        {deletingId === appointment.id ? 'Deleting...' : 'Delete Appointment'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+              <p className="text-gray-600 font-medium">No active appointments.</p>
+            </div>
+          )}
+
+          {cancelledAppointments.length > 0 && (
+            <section className="mt-10">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Cancelled Appointments</h2>
+              <div className="space-y-4">
+                {cancelledAppointments.map((appointment) => (
+                  <div key={appointment.id} className="bg-gray-50 rounded-xl border border-gray-200 shadow-sm p-5">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 text-gray-800 font-bold text-lg">
+                          <CalendarDays className="text-gray-500" size={18} />
+                          Appointment #{appointment.id}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
+                          <span className="inline-flex items-center gap-1">
+                            <UserRound size={14} /> Doctor ID: {appointment.doctorId}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock3 size={14} /> {new Date(appointment.appointmentDate).toLocaleString()}
+                          </span>
+                          <span>{appointment.durationMinutes} min</span>
+                        </div>
+                        <p className="mt-3 text-gray-700"><span className="font-semibold">Reason:</span> {appointment.reason}</p>
+                      </div>
+
+                      <div className="flex flex-col items-start md:items-end gap-2">
+                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide bg-gray-100 text-gray-700">
+                          CANCELLED
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                  
+                </div>
+            </section>
+          )}
+        </>
       )}
     </div>
   );

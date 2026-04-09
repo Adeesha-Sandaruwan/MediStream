@@ -11,6 +11,8 @@ const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localho
 const Appointments = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  const isPatientBookingRoute = location.pathname === '/patient-book-appointment';
+  const isOpenCreateForm = Boolean(location.state?.openCreateForm);
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -77,11 +79,26 @@ const Appointments = () => {
 
   // Fetch appointments on component mount
   useEffect(() => {
+    if (isPatientBookingRoute) {
+      setLoading(false);
+      return;
+    }
+
     fetchAppointments();
-  }, [fetchAppointments]);
+  }, [fetchAppointments, isPatientBookingRoute]);
 
   useEffect(() => {
-    if (!location.state?.openCreateForm) {
+    if (!isPatientBookingRoute) {
+      return;
+    }
+
+    if (!isOpenCreateForm) {
+      navigate('/patient-doctors', { replace: true });
+    }
+  }, [isOpenCreateForm, isPatientBookingRoute, navigate]);
+
+  useEffect(() => {
+    if (!isOpenCreateForm) {
       return;
     }
 
@@ -95,7 +112,7 @@ const Appointments = () => {
       reason: '',
       notes: ''
     });
-  }, [location.state]);
+  }, [location.state, isOpenCreateForm]);
 
   const handleRefresh = () => {
     fetchAppointments();
@@ -119,7 +136,7 @@ const Appointments = () => {
   const handleFormSave = () => {
     handleFormClose();
 
-    if (location.state?.openCreateForm) {
+    if (isOpenCreateForm) {
       navigate('/patient-appointments', { replace: true });
       return;
     }
@@ -158,6 +175,20 @@ const Appointments = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="text-gray-500">Loading appointments...</div>
+      </div>
+    );
+  }
+
+  if (isPatientBookingRoute) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        {showForm && (
+          <AppointmentForm
+            appointment={editingAppointment}
+            onSave={handleFormSave}
+            onCancel={handleFormClose}
+          />
+        )}
       </div>
     );
   }

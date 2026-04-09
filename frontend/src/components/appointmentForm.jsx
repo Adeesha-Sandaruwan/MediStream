@@ -206,6 +206,9 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
     if (!formData.reason || formData.reason.trim() === '') {
       newErrors.reason = 'Reason for appointment is required';
     }
+    if (formData.reason && formData.reason.trim().length < 5) {
+      newErrors.reason = 'Reason must be at least 5 characters';
+    }
     if (formData.reason && formData.reason.length > 500) {
       newErrors.reason = 'Reason cannot exceed 500 characters';
     }
@@ -262,7 +265,9 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
       onSave();
     } catch (error) {
       console.error('Error saving appointment:', error);
-      const errorMessage = error.response?.data?.message || 'Failed to save appointment';
+      const apiMessage = error.response?.data?.message;
+      const apiDetails = error.response?.data?.details;
+      const errorMessage = apiDetails || apiMessage || 'Failed to save appointment';
       setErrors({ submit: errorMessage });
     } finally {
       setIsLoading(false);
