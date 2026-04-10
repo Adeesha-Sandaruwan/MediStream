@@ -42,6 +42,21 @@ const normalizeAppointmentMinuteKey = (value) => {
   return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}T${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}`;
 };
 
+const toLocalDateTimeSeconds = (value) => {
+  if (!value) return '';
+
+  // Keep already-local values untouched (datetime-local style) and append seconds when needed.
+  const direct = String(value).match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})(?::\d{2})?/);
+  if (direct) {
+    return `${direct[1]}:00`;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+
+  return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}T${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}:00`;
+};
+
 const toUpper = (value) => (value || '').toString().toUpperCase();
 const DAY_NAME = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
 
@@ -174,8 +189,8 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
   useEffect(() => {
     if (appointment) {
       // Format date for datetime-local input
-      const formattedDate = appointment.appointmentDate 
-        ? new Date(appointment.appointmentDate).toISOString().slice(0, 16)
+      const formattedDate = appointment.appointmentDate
+        ? toLocalDateTimeSeconds(appointment.appointmentDate).slice(0, 16)
         : '';
       
       setFormData({
@@ -328,8 +343,8 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
       const appointmentData = {
         patientId: parseInt(formData.patientId),
         doctorId: parseInt(formData.doctorId),
-        appointmentDate: new Date(formData.appointmentDate).toISOString(),
-          durationMinutes: isConstrainedBooking ? 30 : parseInt(formData.durationMinutes),
+        appointmentDate: toLocalDateTimeSeconds(formData.appointmentDate),
+        durationMinutes: isConstrainedBooking ? 30 : parseInt(formData.durationMinutes),
         reason: formData.reason,
         notes: formData.notes || null
       };
