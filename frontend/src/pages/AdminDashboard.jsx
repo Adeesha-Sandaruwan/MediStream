@@ -63,8 +63,8 @@ const AdminDashboard = () => {
             syncIssues.push('User directory is temporarily unavailable');
         }
         if (patientsResult.status === 'rejected') {
-            console.error(patientsResult.reason);
-            syncIssues.push('Patient records unavailable');
+            // Patient API can reject admin token depending on service policy; keep dashboard usable.
+            console.warn('Patient records unavailable for admin dashboard sync:', patientsResult.reason);
         }
         if (doctorsResult.status === 'rejected') {
             console.error(doctorsResult.reason);
