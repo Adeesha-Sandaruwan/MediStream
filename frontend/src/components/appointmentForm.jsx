@@ -13,6 +13,8 @@ const DAY_INDEX = {
   SATURDAY: 6,
 };
 
+const BLOCKING_STATUSES = new Set(['PENDING', 'APPROVED', 'COMPLETED']);
+
 const pad2 = (value) => String(value).padStart(2, '0');
 
 const normalizeTime = (value) => {
@@ -26,6 +28,19 @@ const toMinutes = (hhmm) => {
 };
 
 const dateKey = (date) => `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const minuteKeyFromDateAndTime = (dateStr, hhmm) => `${dateStr}T${hhmm}`;
+
+const normalizeAppointmentMinuteKey = (value) => {
+  if (!value) return null;
+  const asString = String(value);
+  const directMatch = asString.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (directMatch) return directMatch[1];
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return `${parsed.getFullYear()}-${pad2(parsed.getMonth() + 1)}-${pad2(parsed.getDate())}T${pad2(parsed.getHours())}:${pad2(parsed.getMinutes())}`;
+};
 
 const toUpper = (value) => (value || '').toString().toUpperCase();
 const DAY_NAME = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY'];
@@ -71,27 +86,45 @@ const buildDateOptions = (slots, daysAhead = 30) => {
   return options;
 };
 
-const buildTimeOptions = (slots, selectedDate) => {
+const buildTimeOptions = (slots, selectedDate, bookedSlotKeys) => {
   if (!selectedDate) return [];
 
   const date = new Date(`${selectedDate}T00:00`);
   if (Number.isNaN(date.getTime())) return [];
 
-  return slots
+  const generated = [];
+  const seen = new Set();
+
+  slots
     .filter((slot) => slotAppliesToDate(slot, date))
-    .map((slot, index) => {
+    .forEach((slot) => {
       const start = normalizeTime(slot.startTime);
       const end = normalizeTime(slot.endTime);
-      if (!start || !end) return null;
+      if (!start || !end) return;
 
-      return {
-        value: `${start}|${index}`,
-        appointmentDate: `${selectedDate}T${start}`,
-        label: `${start} - ${end}`,
-      };
+      const startMin = toMinutes(start);
+      const endMin = toMinutes(end);
+
+      for (let cursor = startMin; cursor + 30 <= endMin; cursor += 30) {
+        const slotStart = `${pad2(Math.floor(cursor / 60))}:${pad2(cursor % 60)}`;
+        const slotEndMinutes = cursor + 30;
+        const slotEnd = `${pad2(Math.floor(slotEndMinutes / 60))}:${pad2(slotEndMinutes % 60)}`;
+        const minuteKey = minuteKeyFromDateAndTime(selectedDate, slotStart);
+
+        if (bookedSlotKeys.has(minuteKey) || seen.has(minuteKey)) {
+          continue;
+        }
+        seen.add(minuteKey);
+
+        generated.push({
+          value: minuteKey,
+          appointmentDate: `${selectedDate}T${slotStart}:00`,
+          label: `${slotStart} - ${slotEnd}`,
+        });
+      }
     })
-    .filter(Boolean)
-    .sort((a, b) => a.label.localeCompare(b.label));
+
+  return generated.sort((a, b) => a.appointmentDate.localeCompare(b.appointmentDate));
 };
 
 const fitsDoctorAvailability = (slots, isoDateTime, durationMinutes) => {
@@ -126,13 +159,15 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
   });
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
+  const [isSlotLoading, setIsSlotLoading] = useState(false);
+  const [bookedSlotKeys, setBookedSlotKeys] = useState(new Set());
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
 
   const doctorAvailability = (appointment?.doctorAvailability || []).filter(slotIsBookable);
   const isConstrainedBooking = Boolean(!appointment?.id && doctorAvailability.length > 0);
   const availableDates = isConstrainedBooking ? buildDateOptions(doctorAvailability) : [];
-  const availableTimes = isConstrainedBooking ? buildTimeOptions(doctorAvailability, selectedDate) : [];
+  const availableTimes = isConstrainedBooking ? buildTimeOptions(doctorAvailability, selectedDate, bookedSlotKeys) : [];
   const selectedDateLabel = availableDates.find((option) => option.value === selectedDate)?.label || '';
   const selectedTimeLabel = availableTimes.find((option) => option.value === selectedTime)?.label || '';
 
@@ -153,6 +188,51 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
       });
     }
   }, [appointment]);
+
+  useEffect(() => {
+    if (!isConstrainedBooking) {
+      setBookedSlotKeys(new Set());
+      return;
+    }
+
+    const doctorId = Number(formData.doctorId);
+    if (!doctorId) {
+      setBookedSlotKeys(new Set());
+      return;
+    }
+
+    let isCancelled = false;
+
+    const loadBookedSlots = async () => {
+      setIsSlotLoading(true);
+      try {
+        const response = await axios.get(`${API_BASE_URL}/doctor/${doctorId}`);
+        const slots = new Set(
+          (Array.isArray(response.data) ? response.data : [])
+            .filter((apt) => BLOCKING_STATUSES.has(toUpper(apt?.status)))
+            .map((apt) => normalizeAppointmentMinuteKey(apt?.appointmentDate))
+            .filter(Boolean)
+        );
+        if (!isCancelled) {
+          setBookedSlotKeys(slots);
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setBookedSlotKeys(new Set());
+        }
+      } finally {
+        if (!isCancelled) {
+          setIsSlotLoading(false);
+        }
+      }
+    };
+
+    loadBookedSlots();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [formData.doctorId, isConstrainedBooking]);
 
   useEffect(() => {
     if (!isConstrainedBooking) return;
@@ -249,7 +329,7 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
         patientId: parseInt(formData.patientId),
         doctorId: parseInt(formData.doctorId),
         appointmentDate: new Date(formData.appointmentDate).toISOString(),
-        durationMinutes: parseInt(formData.durationMinutes),
+          durationMinutes: isConstrainedBooking ? 30 : parseInt(formData.durationMinutes),
         reason: formData.reason,
         notes: formData.notes || null
       };
@@ -331,8 +411,8 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
           </div>
 
           {isConstrainedBooking && (
-            <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded text-sm text-indigo-700">
-              Select a date within the next 30 days and then choose one of the doctor's available times for that day.
+              <div className="mb-4 p-3 bg-indigo-50 border border-indigo-100 rounded text-sm text-indigo-700">
+                  Select a date within the next 30 days and then choose one available 30-minute slot.
             </div>
           )}
           
@@ -370,7 +450,8 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
                     errors.appointmentDate ? 'border-red-500' : ''
                   }`}
                 >
-                  {availableTimes.length === 0 && <option value="">No available times for selected date</option>}
+                  {isSlotLoading && <option value="">Loading available slots...</option>}
+                  {!isSlotLoading && availableTimes.length === 0 && <option value="">No available times for selected date</option>}
                   {availableTimes.map((timeOpt) => (
                     <option key={timeOpt.value} value={timeOpt.value}>{timeOpt.label}</option>
                   ))}
@@ -403,23 +484,31 @@ const AppointmentForm = ({ appointment, onSave, onCancel }) => {
             </div>
           )}
           
-          <div className="mb-4">
-            <label className="block text-gray-700 text-sm font-bold mb-2">
-              Duration (minutes) *
-            </label>
-            <select
-              name="durationMinutes"
-              value={formData.durationMinutes}
-              onChange={handleChange}
-              className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            >
-              <option value="15">15 minutes</option>
-              <option value="30">30 minutes</option>
-              <option value="45">45 minutes</option>
-              <option value="60">60 minutes</option>
-            </select>
-          </div>
-          
+          {isConstrainedBooking ? (
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                Duration
+              </label>
+              <div className="shadow border rounded w-full py-2 px-3 text-gray-700 bg-gray-50">
+                30 minutes per slot
+              </div>
+            </div>
+          ) : (
+            <div className="mb-4">
+              <label className="block text-gray-700 text-sm font-bold mb-2">
+                Duration (minutes) *
+              </label>
+              <select
+                name="durationMinutes"
+                value={formData.durationMinutes}
+                onChange={handleChange}
+                className="shadow border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              >
+                <option value="30">30 minutes</option>
+              </select>
+            </div>
+          )}
+
           <div className="mb-4">
             <label className="block text-gray-700 text-sm font-bold mb-2">
               Reason for Appointment *

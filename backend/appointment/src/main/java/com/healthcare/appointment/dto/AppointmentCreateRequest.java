@@ -27,8 +27,8 @@ public class AppointmentCreateRequest {
     private LocalDateTime appointmentDate;
 
     @NotNull(message = "Duration is required")
-    @Min(value = 15, message = "Minimum appointment duration is 15 minutes")
-    @Max(value = 480, message = "Maximum appointment duration is 480 minutes")
+    @Min(value = 30, message = "Appointment duration must be 30 minutes")
+    @Max(value = 30, message = "Appointment duration must be 30 minutes")
     private Integer durationMinutes;
 
     @NotBlank(message = "Reason is required")

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -80,10 +81,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
      * Check if there's a conflict with existing appointments
      */
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctorId = :doctorId " +
-           "AND a.appointmentDate = :appointmentDate AND a.status != 'CANCELLED'")
+           "AND a.appointmentDate = :appointmentDate AND a.status IN :blockingStatuses")
     long countConflictingAppointments(
             @Param("doctorId") Long doctorId,
-            @Param("appointmentDate") LocalDateTime appointmentDate);
+            @Param("appointmentDate") LocalDateTime appointmentDate,
+            @Param("blockingStatuses") Collection<AppointmentStatus> blockingStatuses);
 
     /**
      * Find pending appointments for a doctor

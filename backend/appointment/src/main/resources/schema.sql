@@ -12,3 +12,8 @@ ALTER TABLE IF EXISTS appointment.appointments
 ALTER TABLE IF EXISTS appointment.appointments
   ALTER COLUMN payment_status SET NOT NULL;
 
+-- Prevent double-booking the same doctor/time while still allowing cancelled/rejected slots to be reused.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_appointments_doctor_slot_active
+  ON appointment.appointments (doctor_id, appointment_date)
+  WHERE status IN ('PENDING', 'APPROVED', 'COMPLETED');
+

@@ -14,11 +14,14 @@ import com.healthcare.appointment.feign.PatientServiceClient;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +39,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class AppointmentService {
+
+    private static final int SLOT_DURATION_MINUTES = 30;
+    private static final Set<AppointmentStatus> BLOCKING_STATUSES = EnumSet.of(
+            AppointmentStatus.PENDING,
+            AppointmentStatus.APPROVED,
+            AppointmentStatus.COMPLETED
+    );
 
     private final AppointmentRepository appointmentRepository;
     private final AppointmentMapper appointmentMapper;
@@ -78,12 +88,19 @@ public class AppointmentService {
         // Validate appointment date is in future
         validateAppointmentDate(request.getAppointmentDate());
 
+        validateThirtyMinuteSlot(request.getAppointmentDate(), request.getDurationMinutes());
+
         // Check for scheduling conflicts
         validateNoConflictingAppointments(request.getDoctorId(), request.getAppointmentDate());
 
         // Create appointment
         Appointment appointment = appointmentMapper.toEntity(request);
-        appointment = appointmentRepository.save(appointment);
+        try {
+            appointment = appointmentRepository.save(appointment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new InvalidAppointmentException(
+                    "This 30-minute slot has just been booked by another patient. Please select a different time.");
+        }
 
         log.info("Appointment created successfully with ID: {}", appointment.getId());
 
@@ -195,11 +212,14 @@ public class AppointmentService {
         // Update fields if provided
         if (request.getAppointmentDate() != null) {
             validateAppointmentDate(request.getAppointmentDate());
+            validateThirtyMinuteSlot(request.getAppointmentDate(),
+                    request.getDurationMinutes() != null ? request.getDurationMinutes() : appointment.getDurationMinutes());
             validateNoConflictingAppointments(appointment.getDoctorId(), request.getAppointmentDate());
             appointment.setAppointmentDate(request.getAppointmentDate());
         }
 
         if (request.getDurationMinutes() != null) {
+            validateThirtyMinuteSlot(appointment.getAppointmentDate(), request.getDurationMinutes());
             appointment.setDurationMinutes(request.getDurationMinutes());
         }
 
@@ -211,7 +231,12 @@ public class AppointmentService {
             appointment.setNotes(request.getNotes());
         }
 
-        appointment = appointmentRepository.save(appointment);
+        try {
+            appointment = appointmentRepository.save(appointment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new InvalidAppointmentException(
+                    "This 30-minute slot is no longer available. Please choose another time.");
+        }
 
         log.info("Appointment updated successfully");
 
@@ -487,10 +512,33 @@ public class AppointmentService {
      * Check for scheduling conflicts
      */
     private void validateNoConflictingAppointments(Long doctorId, LocalDateTime appointmentDate) {
-        long conflicts = appointmentRepository.countConflictingAppointments(doctorId, appointmentDate);
+        long conflicts = appointmentRepository.countConflictingAppointments(
+                doctorId,
+                appointmentDate,
+                BLOCKING_STATUSES
+        );
         if (conflicts > 0) {
             throw new InvalidAppointmentException(
                     "Doctor is not available at the requested time. Please choose another time slot");
+        }
+    }
+
+    private void validateThirtyMinuteSlot(LocalDateTime appointmentDate, Integer durationMinutes) {
+        if (durationMinutes == null || durationMinutes != SLOT_DURATION_MINUTES) {
+            throw new InvalidAppointmentException("Appointments must be booked in 30-minute slots");
+        }
+
+        if (appointmentDate == null) {
+            throw new InvalidAppointmentException("Appointment date is required");
+        }
+
+        int minute = appointmentDate.getMinute();
+        if (minute != 0 && minute != 30) {
+            throw new InvalidAppointmentException("Appointment time must start on the hour or half-hour");
+        }
+
+        if (appointmentDate.getSecond() != 0 || appointmentDate.getNano() != 0) {
+            throw new InvalidAppointmentException("Appointment time must be selected as an exact 30-minute slot");
         }
     }
 
