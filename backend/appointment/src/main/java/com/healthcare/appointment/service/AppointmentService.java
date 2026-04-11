@@ -3,7 +3,9 @@ package com.healthcare.appointment.service;
 import com.healthcare.appointment.dto.AppointmentCreateRequest;
 import com.healthcare.appointment.dto.AppointmentResponse;
 import com.healthcare.appointment.dto.AppointmentUpdateRequest;
+import com.healthcare.appointment.dto.PaymentStatusUpdateRequest;
 import com.healthcare.appointment.entity.Appointment;
+import com.healthcare.appointment.entity.AppointmentPaymentStatus;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.exception.AppointmentNotFoundException;
 import com.healthcare.appointment.exception.InvalidAppointmentException;
@@ -12,11 +14,14 @@ import com.healthcare.appointment.feign.PatientServiceClient;
 import com.healthcare.appointment.repository.AppointmentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -34,6 +39,13 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Transactional
 public class AppointmentService {
+
+    private static final int SLOT_DURATION_MINUTES = 30;
+    private static final Set<AppointmentStatus> BLOCKING_STATUSES = EnumSet.of(
+            AppointmentStatus.PENDING,
+            AppointmentStatus.APPROVED,
+            AppointmentStatus.COMPLETED
+    );
 
     private final AppointmentRepository appointmentRepository;
     private final AppointmentMapper appointmentMapper;
@@ -76,12 +88,19 @@ public class AppointmentService {
         // Validate appointment date is in future
         validateAppointmentDate(request.getAppointmentDate());
 
+        validateThirtyMinuteSlot(request.getAppointmentDate(), request.getDurationMinutes());
+
         // Check for scheduling conflicts
         validateNoConflictingAppointments(request.getDoctorId(), request.getAppointmentDate());
 
         // Create appointment
         Appointment appointment = appointmentMapper.toEntity(request);
-        appointment = appointmentRepository.save(appointment);
+        try {
+            appointment = appointmentRepository.save(appointment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new InvalidAppointmentException(
+                    "This 30-minute slot has just been booked by another patient. Please select a different time.");
+        }
 
         log.info("Appointment created successfully with ID: {}", appointment.getId());
 
@@ -193,11 +212,14 @@ public class AppointmentService {
         // Update fields if provided
         if (request.getAppointmentDate() != null) {
             validateAppointmentDate(request.getAppointmentDate());
+            validateThirtyMinuteSlot(request.getAppointmentDate(),
+                    request.getDurationMinutes() != null ? request.getDurationMinutes() : appointment.getDurationMinutes());
             validateNoConflictingAppointments(appointment.getDoctorId(), request.getAppointmentDate());
             appointment.setAppointmentDate(request.getAppointmentDate());
         }
 
         if (request.getDurationMinutes() != null) {
+            validateThirtyMinuteSlot(appointment.getAppointmentDate(), request.getDurationMinutes());
             appointment.setDurationMinutes(request.getDurationMinutes());
         }
 
@@ -209,7 +231,12 @@ public class AppointmentService {
             appointment.setNotes(request.getNotes());
         }
 
-        appointment = appointmentRepository.save(appointment);
+        try {
+            appointment = appointmentRepository.save(appointment);
+        } catch (DataIntegrityViolationException ex) {
+            throw new InvalidAppointmentException(
+                    "This 30-minute slot is no longer available. Please choose another time.");
+        }
 
         log.info("Appointment updated successfully");
 
@@ -217,8 +244,8 @@ public class AppointmentService {
     }
 
     /**
-     * Approve an appointment (Doctor action)
-     * 
+     * Approve an appointment (Admin action after payment completion)
+     *
      * @param appointmentId Appointment identifier
      * @return Updated appointment response
      * @throws AppointmentNotFoundException if not found
@@ -236,12 +263,88 @@ public class AppointmentService {
                     appointment.getStatus().getDisplayName());
         }
 
+        if (appointment.getPaymentStatus() != AppointmentPaymentStatus.COMPLETED) {
+            throw new InvalidAppointmentException(
+                    "Appointment payment must be completed before admin approval. Current payment status: " +
+                            appointment.getPaymentStatus());
+        }
+
         appointment.setStatus(AppointmentStatus.APPROVED);
         appointment = appointmentRepository.save(appointment);
 
         log.info("Appointment approved successfully");
 
-        // Send notification to patient
+        // Build response (enriched with patient/doctor info from their services)
+        AppointmentResponse response = appointmentMapper.toResponse(appointment);
+
+        // Send notification email to patient
+        emailNotificationService.sendAppointmentStatusUpdateEmail(response);
+
+        notifyDoctorServiceForAction(appointment, response, "approved");
+
+        return response;
+    }
+
+    /**
+     * Sync payment status from the payment service.
+     */
+    public AppointmentResponse updatePaymentStatus(Long appointmentId, PaymentStatusUpdateRequest request) {
+        log.info("Updating payment status for appointment ID: {} to {}", appointmentId, request.getPaymentStatus());
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+
+        if (request.getPaymentStatus() == null) {
+            throw new InvalidAppointmentException("Payment status is required");
+        }
+
+        appointment.setPaymentStatus(request.getPaymentStatus());
+
+        if (request.getPaymentStatus() == AppointmentPaymentStatus.REFUNDED
+                && appointment.getStatus() == AppointmentStatus.APPROVED) {
+            appointment.setStatus(AppointmentStatus.CANCELLED);
+            appointment.setCancelledAt(LocalDateTime.now());
+            appointment.setCancelledReason("Appointment payment refunded");
+        }
+
+        appointment = appointmentRepository.save(appointment);
+        AppointmentResponse response = appointmentMapper.toResponse(appointment);
+
+        if (request.getPaymentStatus() == AppointmentPaymentStatus.COMPLETED
+                && appointment.getStatus() == AppointmentStatus.PENDING) {
+            // Create/refresh doctor-side request once payment is completed.
+            notifyDoctorServiceForAction(appointment, response, "paid");
+        }
+
+        return response;
+    }
+
+    /**
+     * Mark an appointment as completed
+     *
+     * @param appointmentId Appointment identifier
+     * @return Updated appointment response
+     * @throws AppointmentNotFoundException if not found
+     * @throws InvalidAppointmentException if appointment cannot be completed
+     */
+    public AppointmentResponse completeAppointment(Long appointmentId) {
+        log.info("Completing appointment with ID: {}", appointmentId);
+
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new AppointmentNotFoundException(appointmentId));
+
+        if (!appointment.getStatus().equals(AppointmentStatus.APPROVED)) {
+            throw new InvalidAppointmentException(
+                    "Only APPROVED appointments can be marked as completed. Current status: " +
+                    appointment.getStatus().getDisplayName());
+        }
+
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        appointment = appointmentRepository.save(appointment);
+
+        log.info("Appointment completed successfully");
+
+        // Send completion notification to patient
         AppointmentResponse response = appointmentMapper.toResponse(appointment);
         emailNotificationService.sendAppointmentStatusUpdateEmail(response);
 
@@ -409,10 +512,87 @@ public class AppointmentService {
      * Check for scheduling conflicts
      */
     private void validateNoConflictingAppointments(Long doctorId, LocalDateTime appointmentDate) {
-        long conflicts = appointmentRepository.countConflictingAppointments(doctorId, appointmentDate);
+        long conflicts = appointmentRepository.countConflictingAppointments(
+                doctorId,
+                appointmentDate,
+                BLOCKING_STATUSES
+        );
         if (conflicts > 0) {
             throw new InvalidAppointmentException(
                     "Doctor is not available at the requested time. Please choose another time slot");
+        }
+    }
+
+    private void validateThirtyMinuteSlot(LocalDateTime appointmentDate, Integer durationMinutes) {
+        if (durationMinutes == null || durationMinutes != SLOT_DURATION_MINUTES) {
+            throw new InvalidAppointmentException("Appointments must be booked in 30-minute slots");
+        }
+
+        if (appointmentDate == null) {
+            throw new InvalidAppointmentException("Appointment date is required");
+        }
+
+        int minute = appointmentDate.getMinute();
+        if (minute != 0 && minute != 30) {
+            throw new InvalidAppointmentException("Appointment time must start on the hour or half-hour");
+        }
+
+        if (appointmentDate.getSecond() != 0 || appointmentDate.getNano() != 0) {
+            throw new InvalidAppointmentException("Appointment time must be selected as an exact 30-minute slot");
+        }
+    }
+
+    private void notifyDoctorServiceForAction(Appointment appointment, AppointmentResponse response, String reason) {
+        try {
+            String doctorEmail = (response.getDoctorInfo() != null) ? response.getDoctorInfo().getEmail() : null;
+            String patientEmail = (response.getPatientInfo() != null) ? response.getPatientInfo().getEmail() : null;
+
+            if (doctorEmail == null) {
+                try {
+                    DoctorServiceClient.DoctorDto doc = doctorServiceClient.getDoctor(appointment.getDoctorId());
+                    if (doc != null) {
+                        doctorEmail = doc.email;
+                    }
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback doctor-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+            if (patientEmail == null) {
+                try {
+                    PatientServiceClient.PatientDto pat = patientServiceClient.getPatient(appointment.getPatientId());
+                    if (pat != null) {
+                        patientEmail = pat.email;
+                    }
+                } catch (Exception fetchEx) {
+                    log.warn("Fallback patient-email fetch failed: {}", fetchEx.getMessage());
+                }
+            }
+
+            if (doctorEmail == null || patientEmail == null) {
+                log.warn("Could not notify doctor service (reason: {}) for appointment {}: missing doctor/patient email",
+                        reason,
+                        appointment.getId());
+                return;
+            }
+
+            String scheduledAt = appointment.getAppointmentDate() != null
+                    ? appointment.getAppointmentDate().toString()
+                    : null;
+
+            DoctorServiceClient.DoctorAppointmentNotifyRequest notifyRequest =
+                    new DoctorServiceClient.DoctorAppointmentNotifyRequest(
+                            appointment.getId(),
+                            doctorEmail,
+                            patientEmail,
+                            scheduledAt);
+
+            doctorServiceClient.notifyAppointmentApproved(notifyRequest);
+            log.info("Doctor service notified (reason: {}) for appointment ID: {}", reason, appointment.getId());
+        } catch (Exception e) {
+            log.warn("Could not notify doctor service (reason: {}) for appointment {}: {}",
+                    reason,
+                    appointment.getId(),
+                    e.getMessage());
         }
     }
 }

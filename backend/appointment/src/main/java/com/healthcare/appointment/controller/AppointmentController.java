@@ -3,6 +3,7 @@ package com.healthcare.appointment.controller;
 import com.healthcare.appointment.dto.AppointmentCreateRequest;
 import com.healthcare.appointment.dto.AppointmentResponse;
 import com.healthcare.appointment.dto.AppointmentUpdateRequest;
+import com.healthcare.appointment.dto.PaymentStatusUpdateRequest;
 import com.healthcare.appointment.entity.AppointmentStatus;
 import com.healthcare.appointment.service.AppointmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -194,8 +195,8 @@ public class AppointmentController {
     }
 
     /**
-     * Approve an appointment (Doctor action)
-     * 
+     * Approve an appointment (Admin action after payment)
+     *
      * @param appointmentId Appointment identifier
      * @return Updated appointment
      */
@@ -213,6 +214,51 @@ public class AppointmentController {
         log.info("PATCH /appointments/{}/approve - Approving appointment", appointmentId);
 
         AppointmentResponse response = appointmentService.approveAppointment(appointmentId);
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Update appointment payment status (Payment service integration)
+     */
+    @PatchMapping("/{appointmentId}/payment-status")
+    @Operation(summary = "Update appointment payment status",
+               description = "Syncs appointment payment status from the payment service")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Payment status updated successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid payment status update"),
+        @ApiResponse(responseCode = "404", description = "Appointment not found")
+    })
+    public ResponseEntity<AppointmentResponse> updatePaymentStatus(
+            @Parameter(description = "Appointment ID", required = true)
+            @PathVariable Long appointmentId,
+            @RequestBody PaymentStatusUpdateRequest request) {
+        log.info("PATCH /appointments/{}/payment-status - Updating payment status", appointmentId);
+
+        AppointmentResponse response = appointmentService.updatePaymentStatus(appointmentId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Mark an appointment as completed
+     *
+     * @param appointmentId Appointment identifier
+     * @return Updated appointment
+     */
+    @PatchMapping("/{appointmentId}/complete")
+    @Operation(summary = "Mark an appointment as completed",
+               description = "Marks an approved appointment as completed after the visit has taken place")
+    @ApiResponses(value = {
+        @ApiResponse(responseCode = "200", description = "Appointment marked as completed successfully"),
+        @ApiResponse(responseCode = "400", description = "Cannot complete appointment in current status"),
+        @ApiResponse(responseCode = "404", description = "Appointment not found")
+    })
+    public ResponseEntity<AppointmentResponse> completeAppointment(
+            @Parameter(description = "Appointment ID", required = true)
+            @PathVariable Long appointmentId) {
+        log.info("PATCH /appointments/{}/complete - Marking appointment as completed", appointmentId);
+
+        AppointmentResponse response = appointmentService.completeAppointment(appointmentId);
 
         return ResponseEntity.ok(response);
     }

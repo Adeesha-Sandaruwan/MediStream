@@ -48,6 +48,10 @@ public class Appointment {
     @Column(name = "status", nullable = false)
     private AppointmentStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false)
+    private AppointmentPaymentStatus paymentStatus;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -69,6 +73,9 @@ public class Appointment {
         this.updatedAt = LocalDateTime.now();
         if (this.status == null) {
             this.status = AppointmentStatus.PENDING;
+        }
+        if (this.paymentStatus == null) {
+            this.paymentStatus = AppointmentPaymentStatus.PENDING;
         }
     }
 

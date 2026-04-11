@@ -10,6 +10,21 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
 
+  const handleComplete = async (appointmentId) => {
+    if (window.confirm('Mark this appointment as completed?')) {
+      setLoadingAction(appointmentId);
+      try {
+        await axios.patch(`${API_BASE_URL}/${appointmentId}/complete`);
+        onRefresh();
+      } catch (error) {
+        console.error('Error completing appointment:', error);
+        alert(error.response?.data?.message || 'Failed to complete appointment');
+      } finally {
+        setLoadingAction(null);
+      }
+    }
+  };
+
   const handleApprove = async (appointmentId) => {
     if (window.confirm('Are you sure you want to approve this appointment?')) {
       setLoadingAction(appointmentId);
@@ -186,6 +201,16 @@ const AppointmentTable = ({ appointments, onEdit, onRefresh }) => {
                             Reject
                           </button>
                         </>
+                      )}
+
+                      {appointment.status === 'APPROVED' && (
+                        <button
+                          onClick={() => handleComplete(appointment.id)}
+                          disabled={loadingAction === appointment.id}
+                          className="text-blue-600 hover:text-blue-900 disabled:opacity-50"
+                        >
+                          Complete
+                        </button>
                       )}
                       
                       {(appointment.status === 'PENDING' || appointment.status === 'APPROVED') && (

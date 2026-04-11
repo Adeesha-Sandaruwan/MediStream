@@ -1,0 +1,101 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: payment-service
+  cloud:
+    openfeign:
+      httpclient:
+        hc5:
+          enabled: true   # enables PATCH support (Java HttpURLConnection doesn't support PATCH)
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: payment
+        format_sql: true
+    show-sql: false
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0&currentSchema=payment}
+    username: ${DB_USERNAME:postgres.nepfweteejxjuvwqgpek}
+    password: ${DB_PASSWORD:MediStream@Sliit123}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:schema.sql
+
+# Server configuration
+server:
+  port: ${SERVER_PORT:8087}
+  servlet:
+    context-path: /
+
+# Eureka Service Discovery
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://localhost:8761/eureka}
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    instance-id: ${spring.application.name}:${server.port}
+    hostname: ${HOSTNAME:localhost}
+
+# Feign Client configuration
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 5000
+        readTimeout: 5000
+
+# Stripe Configuration
+stripe:
+  api:
+    key: ${STRIPE_API_KEY:sk_test_your_stripe_test_key_here}
+  webhook:
+    secret: ${STRIPE_WEBHOOK_SECRET:whsec_your_webhook_secret_here}
+  currency: ${STRIPE_CURRENCY:usd}
+
+# Appointment Service URL (for Feign client)
+appointment:
+  service:
+    url: ${APPOINTMENT_SERVICE_URL:http://localhost:8086/api/v1}
+
+# Logging configuration
+logging:
+  level:
+    root: INFO
+    com.healthcare.payment: DEBUG
+    org.springframework.web: INFO
+    org.hibernate: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/payment-service.log
+
+# Swagger/OpenAPI Documentation
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+
+# Actuator endpoints for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+

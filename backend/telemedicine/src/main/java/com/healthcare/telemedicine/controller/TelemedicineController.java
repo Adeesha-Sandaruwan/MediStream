@@ -72,6 +72,13 @@ public class TelemedicineController {
         return ResponseEntity.ok(consultationService.listDoctorPastMeetings(authentication.getName()));
     }
 
+    @PostMapping("/internal/appointments/sync")
+    public ResponseEntity<PendingConsultationDto> syncAppointmentToTelemedicine(
+            @RequestBody AppointmentSyncRequest body
+    ) {
+        return ResponseEntity.ok(consultationService.syncFromApprovedAppointment(body));
+    }
+
     @PostMapping("/session/{roomId}/start")
     public ResponseEntity<SessionResponse> startSession(
             @PathVariable("roomId") String roomId,

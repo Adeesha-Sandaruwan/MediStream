@@ -28,29 +28,58 @@ const AdminDashboard = () => {
     const fetchDashboardData = async () => {
         setIsLoading(true);
         setError('');
-        try {
-            const fetchDoctors = fetch('http://localhost:8084/api/doctors/all', {
-                headers: { 
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            }).then(res => res.ok ? res.json() : []).catch(() => []);
+        const fetchDoctors = fetch('http://localhost:8084/api/doctors/all', {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        }).then(res => res.ok ? res.json() : []);
 
-            const [usersData, patientsData, doctorsData] = await Promise.all([
-                getAllUsers(token),
-                getAllPatients(token).catch(() => []),
-                fetchDoctors
-            ]);
+        const [usersResult, patientsResult, doctorsResult] = await Promise.allSettled([
+            getAllUsers(token),
+            getAllPatients(token),
+            fetchDoctors
+        ]);
 
-            setUsers(usersData);
-            setPatientRecords(patientsData);
-            setDoctorRecords(doctorsData);
-        } catch (err) {
-            console.error(err);
-            setError('System Sync Error: Check if Auth, Patient, and Doctor services are online.');
-        } finally {
-            setIsLoading(false);
+        if (usersResult.status === 'fulfilled') {
+            setUsers(usersResult.value);
         }
+
+        if (patientsResult.status === 'fulfilled') {
+            setPatientRecords(patientsResult.value);
+        } else {
+            setPatientRecords([]);
+        }
+
+        if (doctorsResult.status === 'fulfilled') {
+            setDoctorRecords(doctorsResult.value);
+        } else {
+            setDoctorRecords([]);
+        }
+
+        const syncIssues = [];
+        if (usersResult.status === 'rejected') {
+            console.error(usersResult.reason);
+            syncIssues.push('User directory is temporarily unavailable');
+        }
+        if (patientsResult.status === 'rejected') {
+            // Patient API can reject admin token depending on service policy; keep dashboard usable.
+            console.warn('Patient records unavailable for admin dashboard sync:', patientsResult.reason);
+        }
+        if (doctorsResult.status === 'rejected') {
+            console.error(doctorsResult.reason);
+            syncIssues.push('Doctor records unavailable');
+        }
+
+        if (syncIssues.length > 0) {
+            setError(syncIssues.join('. ') + '.');
+        }
+
+        if (usersResult.status === 'rejected') {
+            setUsers([]);
+        }
+
+        setIsLoading(false);
     };
 
     const handleInputChange = (e) => {

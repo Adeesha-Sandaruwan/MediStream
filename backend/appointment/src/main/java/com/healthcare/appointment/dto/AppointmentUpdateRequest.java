@@ -17,8 +17,8 @@ public class AppointmentUpdateRequest {
     @FutureOrPresent(message = "Appointment date must be in the future or present")
     private LocalDateTime appointmentDate;
 
-    @Min(value = 15, message = "Minimum appointment duration is 15 minutes")
-    @Max(value = 480, message = "Maximum appointment duration is 480 minutes")
+    @Min(value = 30, message = "Appointment duration must be 30 minutes")
+    @Max(value = 30, message = "Appointment duration must be 30 minutes")
     private Integer durationMinutes;
 
     @Size(min = 5, max = 500, message = "Reason must be between 5 and 500 characters")

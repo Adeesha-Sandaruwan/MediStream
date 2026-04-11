@@ -12,4 +12,7 @@ import lombok.NoArgsConstructor;
 public class AppointmentDecisionDto {
     private String status;
     private String doctorNotes;
+    private String scheduledStartAt;
+    private Integer durationMinutes;
+    private Boolean regenerateLink;
 }
