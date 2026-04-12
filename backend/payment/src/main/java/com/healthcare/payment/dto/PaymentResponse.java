@@ -19,10 +19,18 @@ public class PaymentResponse {
     private Long appointmentId;
     private Long patientId;
     private Long doctorId;
-    private BigDecimal amount;
+    private BigDecimal amount; // Gross amount (what patient paid)
     private String currency;
     private PaymentStatus paymentStatus;
     private PaymentMethod paymentMethod;
+    
+    // Wallet & Fee Management
+    private BigDecimal platformFeeRate; // Percentage (e.g., 15.00)
+    private BigDecimal platformFee; // Amount taken by platform
+    private BigDecimal doctorEarnings; // Net amount for doctor
+    private String doctorPayoutStatus; // PENDING, PROCESSING, COMPLETED, FAILED
+    private LocalDateTime doctorPayoutDate; // When doctor was paid
+    
     private String stripePaymentIntentId;
     private String stripeClientSecret; // For Stripe.js frontend
     private String transactionReference;

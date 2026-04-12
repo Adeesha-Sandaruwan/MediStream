@@ -285,7 +285,7 @@ export default function PaymentModal({
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-2 sm:px-3 backdrop-blur-sm">
       <div className="payment-modal-panel bg-white rounded-2xl shadow-2xl w-[98vw] sm:w-[96vw] md:w-full md:max-w-4xl xl:max-w-6xl max-h-[95vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white px-8 sm:px-12 py-6 border-b border-indigo-200 flex justify-between items-center">
+        <div className="sticky top-0 bg-linear-to-r from-indigo-600 to-indigo-700 text-white px-8 sm:px-12 py-6 border-b border-indigo-200 flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold">Payment</h2>
             <p className="text-indigo-100 text-base mt-1">Secure payment with Stripe</p>
@@ -301,7 +301,7 @@ export default function PaymentModal({
         {/* Main Content: Two Column Layout */}
         <div className="flex flex-col lg:flex-row max-h-[calc(95vh-180px)] overflow-hidden">
           {/* Left Side: Card Details */}
-          <div className="lg:w-2/5 bg-gradient-to-br from-indigo-50 via-blue-50 to-indigo-100 border-r border-indigo-200 p-8 sm:p-12 overflow-y-auto">
+          <div className="lg:w-2/5 bg-linear-to-br from-indigo-50 via-blue-50 to-indigo-100 border-r border-indigo-200 p-8 sm:p-12 overflow-y-auto">
             <h3 className="text-2xl font-bold text-gray-900 mb-8">Appointment Details</h3>
 
             {/* Doctor Card */}

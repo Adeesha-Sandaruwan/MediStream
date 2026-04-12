@@ -41,6 +41,22 @@ public class Payment {
     @Column(name = "currency", nullable = false)
     private String currency; // LKR or USD
 
+    // Wallet & Fee Management
+    @Column(name = "platform_fee_rate", nullable = false, columnDefinition = "DECIMAL(5,2) DEFAULT 15.00")
+    private BigDecimal platformFeeRate; // Percentage (default 15%)
+
+    @Column(name = "platform_fee", precision = 10, scale = 2)
+    private BigDecimal platformFee; // Amount deducted by platform
+
+    @Column(name = "doctor_earnings", precision = 10, scale = 2)
+    private BigDecimal doctorEarnings; // Net amount for doctor (amount - platformFee)
+
+    @Column(name = "doctor_payout_status", columnDefinition = "VARCHAR(20) DEFAULT 'PENDING'")
+    private String doctorPayoutStatus; // PENDING, PROCESSING, COMPLETED, FAILED
+
+    @Column(name = "doctor_payout_date")
+    private LocalDateTime doctorPayoutDate; // When doctor was paid
+
     @Enumerated(EnumType.STRING)
     @Column(name = "payment_status", nullable = false)
     private PaymentStatus paymentStatus; // PENDING, COMPLETED, FAILED, REFUNDED
@@ -100,6 +116,14 @@ public class Payment {
         }
         if (this.currency == null) {
             this.currency = "LKR"; // Default to LKR for Sri Lanka
+        }
+        // Initialize fee rate if not set
+        if (this.platformFeeRate == null) {
+            this.platformFeeRate = new BigDecimal("15.00"); // 15% default take rate
+        }
+        // Initialize doctor payout status
+        if (this.doctorPayoutStatus == null) {
+            this.doctorPayoutStatus = "PENDING";
         }
     }
 

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart, BellRing, AlertTriangle, Info } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart, BellRing, AlertTriangle, Info, DollarSign } from 'lucide-react';
+import AdminTransactionMonitor from '../components/AdminTransactionMonitor';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -11,6 +12,7 @@ const AdminDashboard = () => {
     const [doctorRecords, setDoctorRecords] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('users');
     
     const [showModal, setShowModal] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -238,23 +240,51 @@ const AdminDashboard = () => {
                 </h1>
                 <button 
                     onClick={() => setShowModal(true)}
-                    className="flex items-center justify-center w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-all duration-300 shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-95"
+                    disabled={activeTab !== 'users'}
+                    className={`flex items-center justify-center w-full sm:w-auto bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-bold px-6 py-3 rounded-xl transition-all duration-300 shadow-lg shadow-indigo-200 hover:shadow-xl hover:-translate-y-0.5 active:scale-95 ${activeTab !== 'users' ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                     <UserPlus size={20} className="mr-2" />
                     New User
                 </button>
             </div>
 
-            {error && (
-                <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-800 p-4 rounded-xl mb-8 shadow-sm">
-                    <div className="flex items-center">
-                        <AlertOctagon className="mr-3 shrink-0" size={20} />
-                        <p className="font-medium">{error}</p>
-                    </div>
-                </div>
-            )}
+            {/* Tab Navigation */}
+            <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1 flex gap-1 mb-8 overflow-x-auto">
+                {[
+                    { id: 'users', label: 'User Management', icon: Users },
+                    { id: 'transactions', label: 'Payment Transactions', icon: DollarSign },
+                ].map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
+                                activeTab === tab.id
+                                    ? 'bg-indigo-600 text-white shadow-md'
+                                    : 'text-gray-700 hover:bg-gray-50'
+                            }`}
+                        >
+                            <Icon size={18} />
+                            <span>{tab.label}</span>
+                        </button>
+                    );
+                })}
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+            {/* User Management Tab Content */}
+            {activeTab === 'users' && (
+                <>
+                    {error && (
+                        <div className="bg-rose-50 border-l-4 border-rose-500 text-rose-800 p-4 rounded-xl mb-8 shadow-sm">
+                            <div className="flex items-center">
+                                <AlertOctagon className="mr-3 shrink-0" size={20} />
+                                <p className="font-medium">{error}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
                 <div className="bg-white rounded-2xl shadow-sm hover:shadow-xl border border-gray-100 p-6 sm:p-8 flex items-center transition-all duration-300 hover:-translate-y-1 group">
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-100 p-4 rounded-2xl mr-5 group-hover:scale-110 transition-transform duration-300">
                         <Users className="text-blue-600" size={28} />
@@ -455,8 +485,15 @@ const AdminDashboard = () => {
                     </table>
                 </div>
             </div>
+                </>
+            )}
 
-            {showModal && (
+            {/* Payment Transactions Tab Content */}
+            {activeTab === 'transactions' && (
+                <AdminTransactionMonitor />
+            )}
+
+            {activeTab === 'users' && showModal && (
                 <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-300">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all border border-gray-100">
                         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -489,7 +526,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {selectedAudit && (
+            {activeTab === 'users' && selectedAudit && (
                 <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 transition-all duration-300">
                     <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all border border-gray-100">
                         <div className="px-8 py-6 bg-gray-50/80 border-b border-gray-100 flex justify-between items-center shrink-0">
