@@ -4,6 +4,8 @@ import com.healthcare.symptomchecker.dto.SymptomAnalysisRequest;
 import com.healthcare.symptomchecker.dto.SymptomAnalysisResponse;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +14,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -21,7 +24,9 @@ import java.util.Set;
 @Service
 public class SymptomAnalysisService {
 
+    private static final Logger logger = LoggerFactory.getLogger(SymptomAnalysisService.class);
     private static final String DEFAULT_DISCLAIMER = "This is a preliminary guidance tool only and not a medical diagnosis. Consult a licensed doctor for clinical decisions.";
+    private static final Duration API_TIMEOUT = Duration.ofSeconds(10);
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -35,7 +40,9 @@ public class SymptomAnalysisService {
             @Value("${ai.gemini.model:gemini-1.5-flash}") String geminiModel,
             @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}") String geminiBaseUrl
     ) {
-        this.httpClient = HttpClient.newHttpClient();
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(API_TIMEOUT)
+                .build();
         this.objectMapper = objectMapper;
         this.geminiApiKey = geminiApiKey;
         this.geminiModel = geminiModel;
@@ -44,12 +51,19 @@ public class SymptomAnalysisService {
 
     public SymptomAnalysisResponse analyze(SymptomAnalysisRequest request) {
         if (geminiApiKey == null || geminiApiKey.isBlank()) {
+            logger.warn("Gemini API key not configured. Using fallback analysis.");
             return fallbackAnalysis(request);
         }
 
         try {
-            return callGemini(request);
-        } catch (Exception ignored) {
+            logger.debug("Analyzing symptoms via Gemini API: {}", request.symptoms().substring(0, Math.min(50, request.symptoms().length())));
+            long startTime = System.currentTimeMillis();
+            SymptomAnalysisResponse response = callGemini(request);
+            long duration = System.currentTimeMillis() - startTime;
+            logger.info("Gemini analysis completed in {}ms", duration);
+            return response;
+        } catch (Exception e) {
+            logger.warn("Gemini API failed: {}. Using fallback analysis.", e.getMessage());
             return fallbackAnalysis(request);
         }
     }
@@ -65,76 +79,89 @@ public class SymptomAnalysisService {
 
         ((com.fasterxml.jackson.databind.node.ObjectNode) payload)
                 .set("generationConfig", objectMapper.createObjectNode()
-                        .put("temperature", 0.2)
+                        .put("temperature", 0.3)
+                        .put("topP", 0.95)
                         .put("responseMimeType", "application/json"));
 
         String url = String.format("%s/%s:generateContent?key=%s", geminiBaseUrl, geminiModel, geminiApiKey);
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(url))
+                .timeout(API_TIMEOUT)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
 
         HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+        if (response.statusCode() != 200) {
+            logger.error("Gemini API error: HTTP {}. Response: {}", response.statusCode(), response.body());
             throw new IllegalStateException("Gemini API error: " + response.statusCode());
         }
 
-        JsonNode root = objectMapper.readTree(response.body());
-        String modelText = root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText();
-        if (modelText == null || modelText.isBlank()) {
-            throw new IllegalStateException("Gemini returned empty content");
+        return parseGeminiResponse(response.body());
+    }
+
+    private SymptomAnalysisResponse parseGeminiResponse(String responseBody) throws IOException {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            String modelText = root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText();
+            
+            if (modelText == null || modelText.isBlank()) {
+                throw new IllegalStateException("Gemini returned empty content");
+            }
+
+            JsonNode modelJson = objectMapper.readTree(stripCodeFence(modelText));
+
+            String urgency = normalizeUrgency(modelJson.path("urgencyLevel").asText("LOW"));
+            List<String> suggestions = readStringArray(modelJson.path("preliminarySuggestions"));
+            List<String> specialties = readStringArray(modelJson.path("recommendedDoctorSpecialties"));
+            String disclaimer = modelJson.path("disclaimer").asText(DEFAULT_DISCLAIMER);
+
+            // Ensure at least defaults
+            if (suggestions.isEmpty()) {
+                suggestions = List.of("Schedule an appointment with a healthcare provider for proper evaluation.");
+            }
+            if (specialties.isEmpty()) {
+                specialties = List.of("General Medicine");
+            }
+
+            logger.debug("Parsed response - Urgency: {}, Suggestions: {}, Specialties: {}", urgency, suggestions.size(), specialties.size());
+            return new SymptomAnalysisResponse(urgency, suggestions, specialties, disclaimer);
+        } catch (Exception e) {
+            logger.error("Failed to parse Gemini response: {}", e.getMessage(), e);
+            throw new IOException("Failed to parse Gemini response", e);
         }
-
-        JsonNode modelJson = objectMapper.readTree(stripCodeFence(modelText));
-
-        String urgency = normalizeUrgency(modelJson.path("urgencyLevel").asText("LOW"));
-        List<String> suggestions = readStringArray(modelJson.path("preliminarySuggestions"));
-        List<String> specialties = readStringArray(modelJson.path("recommendedDoctorSpecialties"));
-        String disclaimer = modelJson.path("disclaimer").asText(DEFAULT_DISCLAIMER);
-
-        if (suggestions.isEmpty()) {
-            suggestions = List.of("Track symptoms and consult a doctor if they worsen.");
-        }
-        if (specialties.isEmpty()) {
-            specialties = List.of("General Medicine");
-        }
-
-        return new SymptomAnalysisResponse(urgency, suggestions, specialties, disclaimer);
     }
 
     private String buildPrompt(SymptomAnalysisRequest request) {
-        String gender = request.gender() == null ? "" : request.gender();
-        String history = request.medicalHistory() == null ? "" : request.medicalHistory();
+        String gender = request.gender() == null || request.gender().isBlank() ? "Not specified" : request.gender();
+        String history = request.medicalHistory() == null || request.medicalHistory().isBlank() ? "None" : request.medicalHistory();
+        String age = request.age() == null ? "Not specified" : request.age().toString();
 
         return """
-                You are a healthcare triage assistant. Analyze patient symptoms and return ONLY valid JSON.
-                Do not include markdown, code fences, notes, or extra text.
-
-                Required JSON schema:
+                Analyze the patient symptoms and respond ONLY with valid JSON (no markdown, code fences, or extra text).
+                
+                Response format:
                 {
                   "urgencyLevel": "LOW|MODERATE|HIGH",
-                  "preliminarySuggestions": ["string", "string"],
-                  "recommendedDoctorSpecialties": ["string", "string"],
-                  "disclaimer": "string"
+                  "preliminarySuggestions": ["suggestion1", "suggestion2"],
+                  "recommendedDoctorSpecialties": ["specialty1", "specialty2"],
+                  "disclaimer": "This is preliminary guidance only, not a diagnosis."
                 }
-
-                Rules:
-                - Keep suggestions brief, practical, and non-diagnostic.
-                - Recommend 1 to 3 relevant specialties.
-                - If emergency red flags are likely, set urgencyLevel to HIGH.
-                - Do not provide final diagnosis, prescriptions, or dosage instructions.
-                - If urgencyLevel is HIGH, include advice to seek immediate emergency care.
-                - disclaimer must clearly state this is not a diagnosis.
-
-                Patient input:
-                symptoms: %s
-                age: %s
-                gender: %s
-                medicalHistory: %s
-                """.formatted(request.symptoms(), request.age(), gender, history);
+                
+                Instructions:
+                - Urgency: HIGH if emergency symptoms (chest pain, severe breathing issues, unconsciousness); MODERATE if concerning (high fever, severe pain); LOW otherwise.
+                - Suggestions: 2-3 practical, non-diagnostic health tips.
+                - Specialties: Recommend 1-3 most relevant medical specialties.
+                - Never diagnose, prescribe, or provide dosages.
+                
+                Patient data:
+                Symptoms: %s
+                Age: %s
+                Gender: %s  
+                Medical history: %s
+                """.formatted(request.symptoms(), age, gender, history);
     }
 
     private String stripCodeFence(String text) {
