@@ -16,18 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
-/**
- * Payment Service
- * Handles all payment-related business logic
- */
 @Service
 @Slf4j
 public class PaymentService {
+
+    private static final ConcurrentMap<Long, Object> APPOINTMENT_PAYMENT_LOCKS = new ConcurrentHashMap<>();
 
     @Autowired
     private PaymentRepository paymentRepository;
@@ -38,131 +39,102 @@ public class PaymentService {
     @Autowired(required = false)
     private AppointmentServiceClient appointmentServiceClient;
 
-    /**
-     * Initiate a payment for an appointment
-     * Creates a Stripe Payment Intent and saves payment record
-     *
-     * @param request CreatePaymentRequest containing appointment and payment details
-     * @return PaymentResponse with Stripe client secret for frontend
-     */
     @Transactional
     public PaymentResponse initiatePayment(CreatePaymentRequest request) {
         try {
-            log.info("Initiating payment for appointment ID: {} with amount: {}",
-                    request.getAppointmentId(), request.getAmount());
+            log.info("Initiating payment for appointment ID: {} with amount: {}", request.getAppointmentId(), request.getAmount());
 
-            // Verify appointment exists (call appointment service)
-            if (appointmentServiceClient != null) {
-                try {
-                    appointmentServiceClient.getAppointmentById(request.getAppointmentId());
-                } catch (Exception e) {
-                    log.warn("Could not verify appointment with service: {}", e.getMessage());
+            synchronized (getAppointmentPaymentLock(request.getAppointmentId())) {
+                if (appointmentServiceClient != null) {
+                    try {
+                        appointmentServiceClient.getAppointmentById(request.getAppointmentId());
+                    } catch (Exception e) {
+                        log.warn("Could not verify appointment with service: {}", e.getMessage());
+                    }
                 }
+
+                List<Payment> existingPayments = paymentRepository.findByAppointmentIdOrderByCreatedAtDesc(request.getAppointmentId());
+                if (!existingPayments.isEmpty()) {
+                    if (existingPayments.size() > 1) {
+                        log.warn("Found {} payment rows for appointment ID: {}. Reusing the safest record.", existingPayments.size(), request.getAppointmentId());
+                    }
+
+                    Payment completedPayment = existingPayments.stream()
+                            .filter(payment -> payment.getPaymentStatus() == PaymentStatus.COMPLETED)
+                            .max(Comparator.comparing(Payment::getCompletedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                            .orElse(null);
+                    if (completedPayment != null) {
+                        throw new RuntimeException("Payment already completed for this appointment");
+                    }
+
+                    Payment reusablePayment = existingPayments.stream()
+                            .filter(payment -> payment.getPaymentStatus() == PaymentStatus.PENDING || payment.getPaymentStatus() == PaymentStatus.FAILED)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (reusablePayment != null) {
+                        log.info("Reusing existing payment for appointment ID: {} (paymentId: {}, status: {})", request.getAppointmentId(), reusablePayment.getId(), reusablePayment.getPaymentStatus());
+                        return mapToResponse(reusablePayment);
+                    }
+                }
+
+                long stripeAmount = stripePaymentService.convertToStripeAmount(request.getAmount());
+
+                Map<String, String> metadata = new HashMap<>();
+                metadata.put("appointmentId", String.valueOf(request.getAppointmentId()));
+                metadata.put("patientId", String.valueOf(request.getPatientId()));
+                metadata.put("doctorId", String.valueOf(request.getDoctorId()));
+
+                PaymentIntent paymentIntent = stripePaymentService.createPaymentIntent(
+                        stripeAmount,
+                        request.getCurrency().toLowerCase(),
+                        request.getDescription(),
+                        metadata
+                );
+
+                Payment payment = Payment.builder()
+                        .appointmentId(request.getAppointmentId())
+                        .patientId(request.getPatientId())
+                        .doctorId(request.getDoctorId())
+                        .amount(request.getAmount())
+                        .currency(request.getCurrency())
+                        .paymentStatus(PaymentStatus.PENDING)
+                        .paymentMethod(PaymentMethod.STRIPE)
+                        .stripePaymentIntentId(paymentIntent.getId())
+                        .stripeClientSecret(paymentIntent.getClientSecret())
+                        .description(request.getDescription())
+                        .notes("Payment initiated via Stripe")
+                        .build();
+
+                payment = paymentRepository.save(payment);
+                log.info("Payment record created with ID: {}, Stripe Intent: {}", payment.getId(), paymentIntent.getId());
+
+                return mapToResponse(payment);
             }
-
-            // Reuse existing pending/failed payment so Pay Now can be retried safely.
-            List<Payment> existingPayments = paymentRepository
-                    .findByAppointmentIdOrderByCreatedAtDesc(request.getAppointmentId());
-            if (!existingPayments.isEmpty()) {
-                if (existingPayments.size() > 1) {
-                    log.warn("Found {} payment rows for appointment ID: {}. Using latest valid record.",
-                            existingPayments.size(), request.getAppointmentId());
-                }
-
-                boolean hasCompletedPayment = existingPayments.stream()
-                        .anyMatch(payment -> payment.getPaymentStatus() == PaymentStatus.COMPLETED);
-                if (hasCompletedPayment) {
-                    throw new RuntimeException("Payment already completed for this appointment");
-                }
-
-                Payment reusablePayment = existingPayments.stream()
-                        .filter(payment -> payment.getPaymentStatus() == PaymentStatus.PENDING
-                                || payment.getPaymentStatus() == PaymentStatus.FAILED)
-                        .findFirst()
-                        .orElse(null);
-
-                if (reusablePayment != null) {
-                    log.info("Reusing existing payment for appointment ID: {} (paymentId: {}, status: {})",
-                            request.getAppointmentId(), reusablePayment.getId(), reusablePayment.getPaymentStatus());
-                    return mapToResponse(reusablePayment);
-                }
-            }
-
-            // Convert amount to Stripe format (cents)
-            long stripeAmount = stripePaymentService.convertToStripeAmount(request.getAmount());
-
-            // Create metadata for Stripe
-            Map<String, String> metadata = new HashMap<>();
-            metadata.put("appointmentId", String.valueOf(request.getAppointmentId()));
-            metadata.put("patientId", String.valueOf(request.getPatientId()));
-            metadata.put("doctorId", String.valueOf(request.getDoctorId()));
-
-            // Create Stripe Payment Intent
-            PaymentIntent paymentIntent = stripePaymentService.createPaymentIntent(
-                    stripeAmount,
-                    request.getCurrency().toLowerCase(),
-                    request.getDescription(),
-                    metadata
-            );
-
-            // Save payment record to database
-            Payment payment = Payment.builder()
-                    .appointmentId(request.getAppointmentId())
-                    .patientId(request.getPatientId())
-                    .doctorId(request.getDoctorId())
-                    .amount(request.getAmount())
-                    .currency(request.getCurrency())
-                    .paymentStatus(PaymentStatus.PENDING)
-                    .paymentMethod(PaymentMethod.STRIPE)
-                    .stripePaymentIntentId(paymentIntent.getId())
-                    .stripeClientSecret(paymentIntent.getClientSecret())
-                    .description(request.getDescription())
-                    .notes("Payment initiated via Stripe")
-                    .build();
-
-            payment = paymentRepository.save(payment);
-            log.info("Payment record created with ID: {}, Stripe Intent: {}",
-                    payment.getId(), paymentIntent.getId());
-
-            return mapToResponse(payment);
         } catch (Exception e) {
             log.error("Failed to initiate payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initiate payment: " + e.getMessage());
         }
     }
 
-    /**
-     * Get payment by ID
-     *
-     * @param paymentId Payment ID
-     * @return PaymentResponse
-     */
     public PaymentResponse getPaymentById(Long paymentId) {
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new RuntimeException("Payment not found with ID: " + paymentId));
         return mapToResponse(payment);
     }
 
-    /**
-     * Get payment by appointment ID
-     *
-     * @param appointmentId Appointment ID
-     * @return PaymentResponse
-     */
     public PaymentResponse getPaymentByAppointmentId(Long appointmentId) {
         List<Payment> payments = paymentRepository.findByAppointmentIdOrderByCreatedAtDesc(appointmentId);
         Payment payment = payments.stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Payment not found for appointment ID: " + appointmentId));
+                .filter(item -> item.getPaymentStatus() == PaymentStatus.COMPLETED)
+                .max(Comparator.comparing(Payment::getCompletedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElseGet(() -> payments.stream().findFirst().orElse(null));
+        if (payment == null) {
+            throw new RuntimeException("Payment not found for appointment ID: " + appointmentId);
+        }
         return mapToResponse(payment);
     }
 
-    /**
-     * Get all payments for a patient
-     *
-     * @param patientId Patient ID
-     * @return List of PaymentResponse
-     */
     public List<PaymentResponse> getPaymentsByPatient(Long patientId) {
         return paymentRepository.findByPatientId(patientId)
                 .stream()
@@ -170,37 +142,27 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Handle successful payment completion
-     * Updates payment status and calculates platform fee & doctor earnings
-     *
-     * @param stripePaymentIntentId Stripe Payment Intent ID
-     * @param paymentMethodLastFour Last 4 digits of card used
-     * @param paymentMethodType Type of payment method (card, etc.)
-     * @return PaymentResponse with updated status
-     */
     @Transactional
-    public PaymentResponse completePayment(String stripePaymentIntentId,
-                                          String paymentMethodLastFour,
-                                          String paymentMethodType) {
+    public PaymentResponse completePayment(String stripePaymentIntentId, String paymentMethodLastFour, String paymentMethodType) {
         try {
             log.info("Completing payment for Stripe Intent: {}", stripePaymentIntentId);
 
-            // Retrieve payment from database
             Payment payment = paymentRepository.findByStripePaymentIntentId(stripePaymentIntentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found for Stripe Intent: " + stripePaymentIntentId));
 
-            // Verify payment with Stripe
+            if (payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
+                log.info("Payment already marked as COMPLETED for Stripe Intent: {}", stripePaymentIntentId);
+                return mapToResponse(payment);
+            }
+
             PaymentIntent paymentIntent = stripePaymentService.retrievePaymentIntent(stripePaymentIntentId);
 
             if (!paymentIntent.getStatus().equals("succeeded")) {
                 throw new RuntimeException("Payment intent status is not 'succeeded': " + paymentIntent.getStatus());
             }
 
-            // Calculate fees and doctor earnings
             calculatePaymentFees(payment);
 
-            // Update payment record
             payment.setPaymentStatus(PaymentStatus.COMPLETED);
             payment.setCompletedAt(LocalDateTime.now());
             payment.setDoctorPayoutStatus("COMPLETED");
@@ -209,14 +171,11 @@ public class PaymentService {
             payment.setPaymentMethodType(paymentMethodType);
             payment.setTransactionReference(paymentIntent.getId());
             payment.setReceiptUrl(null);
-            payment.setNotes("Payment completed successfully via Stripe. Split applied: Doctor 85%, Platform 15%. " +
-                    "Platform fee: " + payment.getPlatformFee() + ", Doctor earnings: " + payment.getDoctorEarnings());
+            payment.setNotes("Payment completed successfully via Stripe. Split applied: Doctor 85%, Platform 15%. Platform fee: " + payment.getPlatformFee() + ", Doctor earnings: " + payment.getDoctorEarnings());
 
             payment = paymentRepository.save(payment);
-            log.info("Payment status updated to COMPLETED for ID: {}. Platform fee: {}, Doctor earnings: {}",
-                    payment.getId(), payment.getPlatformFee(), payment.getDoctorEarnings());
+            log.info("Payment status updated to COMPLETED for ID: {}. Platform fee: {}, Doctor earnings: {}", payment.getId(), payment.getPlatformFee(), payment.getDoctorEarnings());
 
-            // Sync appointment payment state. Doctor approval happens in doctor-service flow.
             if (appointmentServiceClient != null) {
                 try {
                     UpdateStatusRequest statusRequest = UpdateStatusRequest.builder()
@@ -226,7 +185,6 @@ public class PaymentService {
                     appointmentServiceClient.updateAppointmentPaymentStatus(payment.getAppointmentId(), statusRequest);
                 } catch (Exception e) {
                     log.warn("Could not sync appointment payment status: {}", e.getMessage());
-                    // Don't throw exception, payment is already completed
                 }
             }
 
@@ -237,18 +195,10 @@ public class PaymentService {
         }
     }
 
-    /**
-     * Handle failed payment
-     *
-     * @param stripePaymentIntentId Stripe Payment Intent ID
-     * @param failureReason Reason for failure
-     * @return PaymentResponse with failed status
-     */
     @Transactional
     public PaymentResponse failPayment(String stripePaymentIntentId, String failureReason) {
         try {
-            log.warn("Marking payment as FAILED for Stripe Intent: {}, Reason: {}",
-                    stripePaymentIntentId, failureReason);
+            log.warn("Marking payment as FAILED for Stripe Intent: {}, Reason: {}", stripePaymentIntentId, failureReason);
 
             Payment payment = paymentRepository.findByStripePaymentIntentId(stripePaymentIntentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found for Stripe Intent: " + stripePaymentIntentId));
@@ -267,12 +217,6 @@ public class PaymentService {
         }
     }
 
-    /**
-     * Refund a completed payment
-     *
-     * @param paymentId Payment ID to refund
-     * @return PaymentResponse with refunded status
-     */
     @Transactional
     public PaymentResponse refundPayment(Long paymentId) {
         try {
@@ -285,11 +229,9 @@ public class PaymentService {
                 throw new RuntimeException("Only completed payments can be refunded");
             }
 
-            // Process refund with Stripe
             long refundAmount = stripePaymentService.convertToStripeAmount(payment.getAmount());
             stripePaymentService.refundPayment(payment.getStripePaymentIntentId(), refundAmount);
 
-            // Update payment record
             payment.setPaymentStatus(PaymentStatus.REFUNDED);
             payment.setRefundedAt(LocalDateTime.now());
             payment.setNotes("Payment refunded successfully");
@@ -316,12 +258,6 @@ public class PaymentService {
         }
     }
 
-    /**
-     * Map Payment entity to PaymentResponse DTO
-     *
-     * @param payment Payment entity
-     * @return PaymentResponse
-     */
     private PaymentResponse mapToResponse(Payment payment) {
         return PaymentResponse.builder()
                 .id(payment.getId())
@@ -352,13 +288,10 @@ public class PaymentService {
                 .build();
     }
 
-    /**
-     * Calculate platform fee and doctor earnings based on payment amount
-     * Formula: Platform Fee = Amount * (FeeRate / 100)
-     *          Doctor Earnings = Amount - Platform Fee
-     *
-     * @param payment Payment to calculate fees for
-     */
+    private Object getAppointmentPaymentLock(Long appointmentId) {
+        return APPOINTMENT_PAYMENT_LOCKS.computeIfAbsent(appointmentId, ignored -> new Object());
+    }
+
     private void calculatePaymentFees(Payment payment) {
         if (payment.getAmount() == null || payment.getPlatformFeeRate() == null) {
             throw new RuntimeException("Payment amount and fee rate are required for fee calculation");
@@ -375,11 +308,6 @@ public class PaymentService {
                 payment.getId(), payment.getAmount(), payment.getPlatformFeeRate(), platformFee, doctorEarnings);
     }
 
-    /**
-     * Get all completed payments for admin dashboard/monitoring
-     *
-     * @return List of all completed payments with fee information
-     */
     public List<PaymentResponse> getAllCompletedPayments() {
         return paymentRepository.findByPaymentStatusOrderByCompletedAtDesc(PaymentStatus.COMPLETED)
                 .stream()
@@ -387,12 +315,6 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get global transaction ledger with every payment movement
-     * (PENDING, COMPLETED, FAILED, REFUNDED, etc.) in newest-first order.
-     *
-     * @return List of all payment records for admin ledger view
-     */
     public List<PaymentResponse> getGlobalTransactionLedger() {
         return paymentRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
@@ -400,11 +322,6 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get all payments pending doctor payout
-     *
-     * @return List of payments with pending payout status
-     */
     public List<PaymentResponse> getPendingPayouts() {
         List<Payment> payments = paymentRepository.findAll();
         return payments.stream()
@@ -414,12 +331,6 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get all payments for a specific doctor
-     *
-     * @param doctorId Doctor ID
-     * @return List of payments for the doctor
-     */
     public List<PaymentResponse> getPaymentsByDoctor(Long doctorId) {
         return paymentRepository.findByDoctorIdAndPaymentStatusOrderByCompletedAtDesc(doctorId, PaymentStatus.COMPLETED)
                 .stream()
@@ -427,11 +338,6 @@ public class PaymentService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Calculate total platform revenue from completed payments
-     *
-     * @return Total platform fee revenue
-     */
     public BigDecimal calculatePlatformRevenue() {
         List<Payment> completedPayments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
         return completedPayments.stream()
@@ -440,11 +346,6 @@ public class PaymentService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /**
-     * Calculate total doctor earnings pending payout
-     *
-     * @return Total amount pending dispatch to doctors
-     */
     public BigDecimal calculatePendingDoctorPayouts() {
         List<Payment> payments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
         return payments.stream()
@@ -454,12 +355,6 @@ public class PaymentService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    /**
-     * Mark payment as paid out to doctor
-     *
-     * @param paymentId Payment ID
-     * @return Updated PaymentResponse
-     */
     @Transactional
     public PaymentResponse markDoctorPayoutCompleted(Long paymentId) {
         try {
@@ -487,12 +382,6 @@ public class PaymentService {
         }
     }
 
-    /**
-     * Mark multiple payments as paid out to doctors (batch operation)
-     *
-     * @param paymentIds List of payment IDs to mark as completed
-     * @return List of updated PaymentResponse
-     */
     @Transactional
     public List<PaymentResponse> markBatchDoctorPayoutsCompleted(List<Long> paymentIds) {
         try {
@@ -507,11 +396,6 @@ public class PaymentService {
         }
     }
 
-    /**
-     * Get transaction metrics for admin dashboard
-     *
-     * @return Map with transaction statistics
-     */
     public Map<String, Object> getTransactionMetrics() {
         List<Payment> allPayments = paymentRepository.findAll();
         List<Payment> completedPayments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
@@ -536,4 +420,3 @@ public class PaymentService {
         return metrics;
     }
 }
-

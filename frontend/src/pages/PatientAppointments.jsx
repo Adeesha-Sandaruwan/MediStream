@@ -63,14 +63,23 @@ export default function PatientAppointments() {
     }
   }, [token]);
 
-  const getDoctorInfo = (doctorId) => {
-    const doctor = doctors.find((d) => d.id === doctorId || d.id === Number(doctorId));
-    if (doctor) {
-      const name = `${doctor.firstName || ''} ${doctor.lastName || ''}`.trim() || `Doctor ${doctorId}`;
-      const fee = doctor.consultationFee ? parseFloat(doctor.consultationFee) : 5000;
-      return { name, fee };
-    }
-    return { name: `Doctor ${doctorId}`, fee: 5000 };
+  const getDoctorInfo = (appointment) => {
+    const doctorId = appointment?.doctorId;
+    const doctorFromDirectory = doctors.find((d) => d.id === doctorId || d.id === Number(doctorId));
+
+    const doctorName =
+      appointment?.doctorInfo?.name
+      || `${doctorFromDirectory?.firstName || ''} ${doctorFromDirectory?.lastName || ''}`.trim()
+      || `Doctor ${doctorId}`;
+
+    const specialty =
+      appointment?.doctorInfo?.specialization
+      || doctorFromDirectory?.specialty
+      || 'Specialty not available';
+
+    const fee = doctorFromDirectory?.consultationFee ? parseFloat(doctorFromDirectory.consultationFee) : 5000;
+
+    return { name: doctorName, specialty, fee };
   };
 
   const isPaymentCompleted = (appointment) => appointment.paymentStatus === 'COMPLETED';
@@ -173,7 +182,9 @@ export default function PatientAppointments() {
         <>
           {activeAppointments.length > 0 ? (
             <div className="space-y-4">
-              {activeAppointments.map((appointment) => (
+              {activeAppointments.map((appointment) => {
+                const doctorInfo = getDoctorInfo(appointment);
+                return (
                 <div key={appointment.id} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     <div>
@@ -185,6 +196,8 @@ export default function PatientAppointments() {
                         <span className="inline-flex items-center gap-1">
                           <UserRound size={14} /> Doctor ID: {appointment.doctorId}
                         </span>
+                        <span>Doctor: {doctorInfo.name}</span>
+                        <span>Specialty: {doctorInfo.specialty}</span>
                         <span className="inline-flex items-center gap-1">
                           <Clock3 size={14} /> {new Date(appointment.appointmentDate).toLocaleString()}
                         </span>
@@ -226,7 +239,8 @@ export default function PatientAppointments() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
@@ -238,7 +252,9 @@ export default function PatientAppointments() {
             <section className="mt-10">
               <h2 className="text-xl font-bold text-gray-800 mb-4">Cancelled Appointments</h2>
               <div className="space-y-4">
-                {cancelledAppointments.map((appointment) => (
+                {cancelledAppointments.map((appointment) => {
+                  const doctorInfo = getDoctorInfo(appointment);
+                  return (
                   <div key={appointment.id} className="bg-gray-50 rounded-xl border border-gray-200 shadow-sm p-5">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div>
@@ -250,6 +266,8 @@ export default function PatientAppointments() {
                           <span className="inline-flex items-center gap-1">
                             <UserRound size={14} /> Doctor ID: {appointment.doctorId}
                           </span>
+                          <span>Doctor: {doctorInfo.name}</span>
+                          <span>Specialty: {doctorInfo.specialty}</span>
                           <span className="inline-flex items-center gap-1">
                             <Clock3 size={14} /> {new Date(appointment.appointmentDate).toLocaleString()}
                           </span>
@@ -265,8 +283,9 @@ export default function PatientAppointments() {
                       </div>
                     </div>
                   </div>
-                ))}
-                  
+                );
+                })}
+
                 </div>
             </section>
           )}
@@ -275,7 +294,7 @@ export default function PatientAppointments() {
 
       {/* Payment Modal */}
       {selectedAppointmentForPayment && (() => {
-        const { name: doctorName, fee: consultationFee } = getDoctorInfo(selectedAppointmentForPayment.doctorId);
+        const { name: doctorName, fee: consultationFee } = getDoctorInfo(selectedAppointmentForPayment);
         return (
           <PaymentModal
             isOpen={paymentModalOpen}
