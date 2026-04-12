@@ -968,7 +968,7 @@ export default function Telemedicine() {
 
       {patientSuccess && role === 'PATIENT' && (
         <div
-          className="mt-6 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-5 py-4 text-emerald-900 shadow-sm flex gap-3 items-start"
+          className="mt-6 rounded-xl border border-emerald-200 bg-linear-to-r from-emerald-50 to-teal-50 px-5 py-4 text-emerald-900 shadow-sm flex gap-3 items-start"
           role="status"
         >
           <CheckCircle2 className="h-6 w-6 shrink-0 text-emerald-600" />

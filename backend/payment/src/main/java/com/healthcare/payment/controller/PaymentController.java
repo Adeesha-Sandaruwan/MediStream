@@ -3,12 +3,22 @@ package com.healthcare.payment.controller;
 import com.healthcare.payment.dto.CreatePaymentRequest;
 import com.healthcare.payment.dto.PaymentResponse;
 import com.healthcare.payment.service.PaymentService;
-import com.healthcare.payment.dto.wallet.WalletSummaryResponse;
-import com.healthcare.payment.dto.wallet.WalletWithdrawalRequest;
-import com.healthcare.payment.dto.wallet.WalletWithdrawalResponse;
-import com.healthcare.payment.service.WalletService;
-import com.healthcare.payment.entity.WalletWithdrawalStatus;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Payment Controller
+ * Handles all payment-related HTTP requests
+ */
 @RestController
 @RequestMapping("/api/v1/payments")
 @Slf4j
@@ -17,9 +27,6 @@ public class PaymentController {
 
     @Autowired
     private PaymentService paymentService;
-
-    @Autowired
-    private WalletService walletService;
 
     /**
      * Initiate a payment for an appointment
@@ -306,122 +313,5 @@ public class PaymentController {
         response.put("service", "Payment Service");
         return ResponseEntity.ok(response);
     }
-
-    // ==================== WALLET ENDPOINTS ====================
-
-    /**
-     * Get admin system wallet summary
-     */
-    @GetMapping("/wallet/admin/summary")
-    @Operation(summary = "Get Admin Wallet Summary",
-              description = "Retrieve admin system wallet balance and details")
-    public ResponseEntity<WalletSummaryResponse> getAdminWalletSummary() {
-        try {
-            log.info("Fetching admin wallet summary");
-            WalletSummaryResponse response = walletService.getAdminWalletSummary();
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error fetching admin wallet summary: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Get doctor wallet summary
-     */
-    @GetMapping("/wallet/doctor/{doctorId}/summary")
-    @Operation(summary = "Get Doctor Wallet Summary",
-              description = "Retrieve doctor wallet balance and details")
-    public ResponseEntity<WalletSummaryResponse> getDoctorWalletSummary(@PathVariable Long doctorId) {
-        try {
-            log.info("Fetching wallet summary for doctor ID: {}", doctorId);
-            WalletSummaryResponse response = walletService.getDoctorWalletSummary(doctorId);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error fetching doctor wallet summary: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Request a withdrawal from wallet
-     */
-    @PostMapping("/wallet/{walletId}/withdraw")
-    @Operation(summary = "Request Withdrawal",
-              description = "Request a withdrawal from wallet to bank account")
-    public ResponseEntity<WalletWithdrawalResponse> requestWithdrawal(
-            @PathVariable Long walletId,
-            @RequestBody WalletWithdrawalRequest request) {
-        try {
-            log.info("Withdrawal request for wallet ID: {}, amount: {}", walletId, request.getAmount());
-            var withdrawal = walletService.createWithdrawalRequest(walletId, request);
-            WalletWithdrawalResponse response = mapWithdrawalToResponse(withdrawal);
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
-        } catch (Exception e) {
-            log.error("Error creating withdrawal request: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
-
-    /**
-     * Get pending withdrawals (admin view)
-     */
-    @GetMapping("/wallet/withdrawals/pending")
-    @Operation(summary = "Get Pending Withdrawals",
-              description = "Admin endpoint: Retrieve all pending withdrawal requests")
-    public ResponseEntity<List<WalletWithdrawalResponse>> getPendingWithdrawals() {
-        try {
-            log.info("Fetching pending withdrawal requests");
-            var withdrawals = walletService.getWithdrawalsByStatus(WalletWithdrawalStatus.PENDING);
-            return ResponseEntity.ok(withdrawals);
-        } catch (Exception e) {
-            log.error("Error fetching pending withdrawals: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Approve withdrawal (admin endpoint)
-     */
-    @PostMapping("/wallet/withdrawals/{withdrawalId}/approve")
-    @Operation(summary = "Approve Withdrawal",
-              description = "Admin endpoint: Approve and process a withdrawal request")
-    public ResponseEntity<WalletWithdrawalResponse> approveWithdrawal(
-            @PathVariable Long withdrawalId,
-            @RequestParam(required = false) Long approvedById,
-            @RequestParam(required = false, defaultValue = "ADMIN") String approvedByRole) {
-        try {
-            log.info("Approving withdrawal request ID: {}", withdrawalId);
-            var withdrawal = walletService.processWithdrawal(withdrawalId, approvedById, approvedByRole);
-            WalletWithdrawalResponse response = mapWithdrawalToResponse(withdrawal);
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error approving withdrawal: {}", e.getMessage(), e);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-    }
-
-    // ==================== Helper ====================
-
-    private WalletWithdrawalResponse mapWithdrawalToResponse(com.healthcare.payment.entity.WalletWithdrawal withdrawal) {
-        return WalletWithdrawalResponse.builder()
-                .id(withdrawal.getId())
-                .walletId(withdrawal.getWalletId())
-                .requestedById(withdrawal.getRequestedById())
-                .requestedByRole(withdrawal.getRequestedByRole())
-                .amount(withdrawal.getAmount())
-                .bankName(withdrawal.getBankName())
-                .bankAccountName(withdrawal.getBankAccountName())
-                .bankAccountNumber(withdrawal.getBankAccountNumber())
-                .bankBranch(withdrawal.getBankBranch())
-                .bankCode(withdrawal.getBankCode())
-                .status(withdrawal.getStatus())
-                .referenceCode(withdrawal.getReferenceCode())
-                .notes(withdrawal.getNotes())
-                .requestedAt(withdrawal.getRequestedAt())
-                .processedAt(withdrawal.getProcessedAt())
-                .processedById(withdrawal.getProcessedById())
-                .processedByRole(withdrawal.getProcessedByRole())
-                .build();
-    }
+}
 
