@@ -3,7 +3,9 @@ package com.healthcare.doctor.service;
 import com.healthcare.doctor.dto.AppointmentDecisionDto;
 import com.healthcare.doctor.dto.DoctorAppointmentRequestDto;
 import com.healthcare.doctor.entity.DoctorAppointmentRequest;
+import com.healthcare.doctor.entity.DoctorProfile;
 import com.healthcare.doctor.repository.DoctorAppointmentRequestRepository;
+import com.healthcare.doctor.repository.DoctorProfileRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,9 +22,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -30,6 +34,7 @@ import java.util.Map;
 public class DoctorAppointmentService {
 
     private final DoctorAppointmentRequestRepository doctorAppointmentRequestRepository;
+    private final DoctorProfileRepository doctorProfileRepository;
     private final RestTemplate restTemplate = new RestTemplate();
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -84,7 +89,13 @@ public class DoctorAppointmentService {
     }
 
     public List<DoctorAppointmentRequest> getMyRequests(String doctorEmail) {
-        return doctorAppointmentRequestRepository.findByDoctorEmailOrderByUpdatedAtDesc(doctorEmail);
+        syncFromAppointmentService(doctorEmail);
+
+        return doctorAppointmentRequestRepository.findByDoctorEmailOrderByUpdatedAtDesc(doctorEmail)
+            .stream()
+            .sorted(Comparator.comparing(DoctorAppointmentRequest::getUpdatedAt,
+                Comparator.nullsLast(Comparator.reverseOrder())))
+            .toList();
     }
 
     public DoctorAppointmentRequest decide(String doctorEmail, Long appointmentId, AppointmentDecisionDto dto) {
@@ -233,6 +244,130 @@ public class DoctorAppointmentService {
             return second;
         }
         throw new RuntimeException("A schedule time is required to create telemedicine visit");
+    }
+
+    @SuppressWarnings("unchecked")
+    private void syncFromAppointmentService(String doctorEmail) {
+        Optional<DoctorProfile> profileOpt = doctorProfileRepository.findByEmail(doctorEmail);
+        if (profileOpt.isEmpty() || profileOpt.get().getId() == null) {
+            return;
+        }
+
+        Long doctorId = profileOpt.get().getId();
+
+        try {
+            List<Map<String, Object>> appointments = fetchDoctorAppointments(doctorId);
+            if (appointments == null || appointments.isEmpty()) {
+                return;
+            }
+
+            for (Map<String, Object> appt : appointments) {
+                Long appointmentId = readLong(appt.get("appointmentId"));
+                if (appointmentId == null) {
+                    appointmentId = readLong(appt.get("id"));
+                }
+                if (appointmentId == null) {
+                    continue;
+                }
+
+                DoctorAppointmentRequest request = doctorAppointmentRequestRepository
+                        .findByAppointmentId(appointmentId)
+                        .orElse(DoctorAppointmentRequest.builder()
+                                .appointmentId(appointmentId)
+                                .doctorEmail(doctorEmail)
+                                .build());
+
+                request.setDoctorEmail(doctorEmail);
+
+                String patientEmail = extractPatientEmail(appt);
+                if (patientEmail != null && !patientEmail.isBlank()) {
+                    request.setPatientEmail(patientEmail);
+                }
+
+                if (request.getPatientEmail() == null || request.getPatientEmail().isBlank()) {
+                    log.warn("Skipping appointment sync for appointmentId={} because patient email is missing", appointmentId);
+                    continue;
+                }
+
+                String scheduledAt = readString(appt.get("appointmentDate"));
+                if (scheduledAt != null && !scheduledAt.isBlank()) {
+                    request.setScheduledAt(scheduledAt);
+                }
+
+                String mappedStatus = mapAppointmentStatus(readString(appt.get("status")));
+                if (mappedStatus != null) {
+                    request.setStatus(mappedStatus);
+                }
+
+                request.setUpdatedAt(LocalDateTime.now());
+                doctorAppointmentRequestRepository.save(request);
+            }
+        } catch (Exception ex) {
+            log.warn("Could not sync appointments for doctor {} from appointment service: {}",
+                    doctorEmail,
+                    ex.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> fetchDoctorAppointments(Long doctorId) {
+        String primaryUrl = appointmentServiceUrl + "/appointments/doctor/" + doctorId;
+        try {
+            return restTemplate.getForObject(primaryUrl, List.class);
+        } catch (Exception primaryEx) {
+            if (!appointmentServiceUrl.contains("/api/v1")) {
+                String fallbackUrl = appointmentServiceUrl + "/api/v1/appointments/doctor/" + doctorId;
+                return restTemplate.getForObject(fallbackUrl, List.class);
+            }
+            throw primaryEx;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private String extractPatientEmail(Map<String, Object> appointmentPayload) {
+        Object patientInfoRaw = appointmentPayload.get("patientInfo");
+        if (patientInfoRaw instanceof Map<?, ?> patientInfoMap) {
+            Object emailRaw = ((Map<String, Object>) patientInfoMap).get("email");
+            String email = readString(emailRaw);
+            if (email != null && !email.isBlank()) {
+                return email;
+            }
+        }
+
+        return readString(appointmentPayload.get("patientEmail"));
+    }
+
+    private String mapAppointmentStatus(String appointmentStatus) {
+        if (appointmentStatus == null || appointmentStatus.isBlank()) {
+            return null;
+        }
+
+        return switch (appointmentStatus.trim().toUpperCase()) {
+            case "PENDING", "APPROVED", "REJECTED", "COMPLETED", "CANCELLED" ->
+                    appointmentStatus.trim().toUpperCase();
+            default -> null;
+        };
+    }
+
+    private Long readLong(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        if (rawValue instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(rawValue));
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String readString(Object rawValue) {
+        if (rawValue == null) {
+            return null;
+        }
+        return String.valueOf(rawValue);
     }
 
     @SuppressWarnings("unchecked")
