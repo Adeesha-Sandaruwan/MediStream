@@ -172,7 +172,7 @@ public class PaymentService {
 
     /**
      * Handle successful payment completion
-     * Updates payment status and appointment status
+     * Updates payment status and calculates platform fee & doctor earnings
      *
      * @param stripePaymentIntentId Stripe Payment Intent ID
      * @param paymentMethodLastFour Last 4 digits of card used
@@ -197,6 +197,9 @@ public class PaymentService {
                 throw new RuntimeException("Payment intent status is not 'succeeded': " + paymentIntent.getStatus());
             }
 
+            // Calculate fees and doctor earnings
+            calculatePaymentFees(payment);
+
             // Update payment record
             payment.setPaymentStatus(PaymentStatus.COMPLETED);
             payment.setCompletedAt(LocalDateTime.now());
@@ -204,10 +207,12 @@ public class PaymentService {
             payment.setPaymentMethodType(paymentMethodType);
             payment.setTransactionReference(paymentIntent.getId());
             payment.setReceiptUrl(null);
-            payment.setNotes("Payment completed successfully via Stripe");
+            payment.setNotes("Payment completed successfully via Stripe. Platform fee: " + payment.getPlatformFee() + 
+                           ", Doctor earnings: " + payment.getDoctorEarnings());
 
             payment = paymentRepository.save(payment);
-            log.info("Payment status updated to COMPLETED for ID: {}", payment.getId());
+            log.info("Payment status updated to COMPLETED for ID: {}. Platform fee: {}, Doctor earnings: {}",
+                    payment.getId(), payment.getPlatformFee(), payment.getDoctorEarnings());
 
             // Sync appointment payment state. Doctor approval happens in doctor-service flow.
             if (appointmentServiceClient != null) {
@@ -325,6 +330,11 @@ public class PaymentService {
                 .currency(payment.getCurrency())
                 .paymentStatus(payment.getPaymentStatus())
                 .paymentMethod(payment.getPaymentMethod())
+                .platformFeeRate(payment.getPlatformFeeRate())
+                .platformFee(payment.getPlatformFee())
+                .doctorEarnings(payment.getDoctorEarnings())
+                .doctorPayoutStatus(payment.getDoctorPayoutStatus())
+                .doctorPayoutDate(payment.getDoctorPayoutDate())
                 .stripePaymentIntentId(payment.getStripePaymentIntentId())
                 .stripeClientSecret(payment.getStripeClientSecret())
                 .transactionReference(payment.getTransactionReference())
@@ -338,6 +348,177 @@ public class PaymentService {
                 .completedAt(payment.getCompletedAt())
                 .notes(payment.getNotes())
                 .build();
+    }
+
+    /**
+     * Calculate platform fee and doctor earnings based on payment amount
+     * Formula: Platform Fee = Amount * (FeeRate / 100)
+     *          Doctor Earnings = Amount - Platform Fee
+     *
+     * @param payment Payment to calculate fees for
+     */
+    private void calculatePaymentFees(Payment payment) {
+        if (payment.getAmount() == null || payment.getPlatformFeeRate() == null) {
+            throw new RuntimeException("Payment amount and fee rate are required for fee calculation");
+        }
+
+        BigDecimal feeRate = payment.getPlatformFeeRate().divide(new BigDecimal("100"), 2, java.math.RoundingMode.HALF_UP);
+        BigDecimal platformFee = payment.getAmount().multiply(feeRate).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal doctorEarnings = payment.getAmount().subtract(platformFee).setScale(2, java.math.RoundingMode.HALF_UP);
+
+        payment.setPlatformFee(platformFee);
+        payment.setDoctorEarnings(doctorEarnings);
+        
+        log.info("Calculated fees for payment ID: {}. Amount: {}, Platform Fee ({}%): {}, Doctor Earnings: {}",
+                payment.getId(), payment.getAmount(), payment.getPlatformFeeRate(), platformFee, doctorEarnings);
+    }
+
+    /**
+     * Get all completed payments for admin dashboard/monitoring
+     *
+     * @return List of all completed payments with fee information
+     */
+    public List<PaymentResponse> getAllCompletedPayments() {
+        return paymentRepository.findByPaymentStatusOrderByCompletedAtDesc(PaymentStatus.COMPLETED)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all payments pending doctor payout
+     *
+     * @return List of payments with pending payout status
+     */
+    public List<PaymentResponse> getPendingPayouts() {
+        List<Payment> payments = paymentRepository.findAll();
+        return payments.stream()
+                .filter(p -> p.getPaymentStatus() == PaymentStatus.COMPLETED && 
+                           "PENDING".equals(p.getDoctorPayoutStatus()))
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all payments for a specific doctor
+     *
+     * @param doctorId Doctor ID
+     * @return List of payments for the doctor
+     */
+    public List<PaymentResponse> getPaymentsByDoctor(Long doctorId) {
+        return paymentRepository.findByDoctorIdAndPaymentStatusOrderByCompletedAtDesc(doctorId, PaymentStatus.COMPLETED)
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Calculate total platform revenue from completed payments
+     *
+     * @return Total platform fee revenue
+     */
+    public BigDecimal calculatePlatformRevenue() {
+        List<Payment> completedPayments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
+        return completedPayments.stream()
+                .map(Payment::getPlatformFee)
+                .filter(fee -> fee != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Calculate total doctor earnings pending payout
+     *
+     * @return Total amount pending dispatch to doctors
+     */
+    public BigDecimal calculatePendingDoctorPayouts() {
+        List<Payment> payments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
+        return payments.stream()
+                .filter(p -> "PENDING".equals(p.getDoctorPayoutStatus()))
+                .map(Payment::getDoctorEarnings)
+                .filter(earnings -> earnings != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Mark payment as paid out to doctor
+     *
+     * @param paymentId Payment ID
+     * @return Updated PaymentResponse
+     */
+    @Transactional
+    public PaymentResponse markDoctorPayoutCompleted(Long paymentId) {
+        try {
+            log.info("Marking doctor payout as COMPLETED for payment ID: {}", paymentId);
+
+            Payment payment = paymentRepository.findById(paymentId)
+                    .orElseThrow(() -> new RuntimeException("Payment not found with ID: " + paymentId));
+
+            if (!payment.getPaymentStatus().equals(PaymentStatus.COMPLETED)) {
+                throw new RuntimeException("Only completed payments can be marked for doctor payout");
+            }
+
+            payment.setDoctorPayoutStatus("COMPLETED");
+            payment.setDoctorPayoutDate(LocalDateTime.now());
+            payment.setNotes("Doctor payout completed at " + LocalDateTime.now());
+
+            payment = paymentRepository.save(payment);
+            log.info("Doctor payout marked COMPLETED for payment ID: {}, Amount: {}", 
+                    payment.getId(), payment.getDoctorEarnings());
+
+            return mapToResponse(payment);
+        } catch (Exception e) {
+            log.error("Failed to mark doctor payout as completed: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to mark doctor payout: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Mark multiple payments as paid out to doctors (batch operation)
+     *
+     * @param paymentIds List of payment IDs to mark as completed
+     * @return List of updated PaymentResponse
+     */
+    @Transactional
+    public List<PaymentResponse> markBatchDoctorPayoutsCompleted(List<Long> paymentIds) {
+        try {
+            log.info("Marking batch doctor payouts as COMPLETED for {} payments", paymentIds.size());
+
+            return paymentIds.stream()
+                    .map(this::markDoctorPayoutCompleted)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Failed to mark batch doctor payouts: {}", e.getMessage(), e);
+            throw new RuntimeException("Failed to mark batch payouts: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get transaction metrics for admin dashboard
+     *
+     * @return Map with transaction statistics
+     */
+    public Map<String, Object> getTransactionMetrics() {
+        List<Payment> allPayments = paymentRepository.findAll();
+        List<Payment> completedPayments = paymentRepository.findByPaymentStatus(PaymentStatus.COMPLETED);
+        
+        BigDecimal totalRevenue = calculatePlatformRevenue();
+        BigDecimal pendingPayouts = calculatePendingDoctorPayouts();
+        BigDecimal totalGrossAmount = completedPayments.stream()
+                .map(Payment::getAmount)
+                .filter(amount -> amount != null)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        
+        Map<String, Object> metrics = new HashMap<>();
+        metrics.put("totalTransactions", allPayments.size());
+        metrics.put("completedTransactions", completedPayments.size());
+        metrics.put("totalGrossRevenue", totalGrossAmount);
+        metrics.put("platformRevenue", totalRevenue);
+        metrics.put("pendingDoctorPayouts", pendingPayouts);
+        metrics.put("averageTransactionAmount", completedPayments.isEmpty() ? 
+                BigDecimal.ZERO : 
+                totalGrossAmount.divide(new BigDecimal(completedPayments.size()), 2, java.math.RoundingMode.HALF_UP));
+        
+        return metrics;
     }
 }
 

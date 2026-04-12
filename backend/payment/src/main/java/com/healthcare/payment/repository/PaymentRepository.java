@@ -38,5 +38,11 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // Find completed payments for a patient
     List<Payment> findByPatientIdAndPaymentStatusOrderByCompletedAtDesc(Long patientId, PaymentStatus paymentStatus);
+
+    // Find completed payments for a doctor (ordered by completion date)
+    List<Payment> findByDoctorIdAndPaymentStatusOrderByCompletedAtDesc(Long doctorId, PaymentStatus paymentStatus);
+
+    // Find payments by status ordered by completion date (for admin dashboard)
+    List<Payment> findByPaymentStatusOrderByCompletedAtDesc(PaymentStatus paymentStatus);
 }
 
