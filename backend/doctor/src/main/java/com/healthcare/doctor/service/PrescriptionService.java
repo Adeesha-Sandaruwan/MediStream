@@ -23,6 +23,10 @@ public class PrescriptionService {
         String profileSignatureImage = doctorProfileRepository.findByEmail(normalizedDoctorEmail)
                 .map(profile -> profile.getDoctorSignatureImage())
                 .orElse(null);
+        String validatedSignatureImage = resolveSignatureImage(profileSignatureImage);
+        if (validatedSignatureImage == null) {
+            throw new RuntimeException("Please upload your digital signature image in Doctor Profile before issuing prescriptions");
+        }
 
         DigitalPrescription prescription = DigitalPrescription.builder()
                 .doctorEmail(normalizedDoctorEmail)
@@ -31,8 +35,8 @@ public class PrescriptionService {
                 .diagnosis(dto.getDiagnosis())
                 .medications(dto.getMedications())
                 .advice(dto.getAdvice())
-                .doctorSignature(resolveSignature(dto.getDoctorSignature(), doctorEmail))
-                .doctorSignatureImage(resolveSignatureImage(profileSignatureImage))
+            .doctorSignature(null)
+            .doctorSignatureImage(validatedSignatureImage)
                 .followUpDate(dto.getFollowUpDate())
                 .issuedAt(LocalDateTime.now())
                 .build();
@@ -56,13 +60,6 @@ public class PrescriptionService {
             throw new RuntimeException("Email is required");
         }
         return email.trim().toLowerCase(Locale.ENGLISH);
-    }
-
-    private String resolveSignature(String signature, String doctorEmail) {
-        if (signature == null || signature.isBlank()) {
-            return normalizeEmail(doctorEmail);
-        }
-        return signature.trim();
     }
 
     private String resolveSignatureImage(String signatureImage) {
