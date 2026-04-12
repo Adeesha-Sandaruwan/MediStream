@@ -16,9 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +31,8 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class PaymentService {
+
+    private static final ConcurrentMap<Long, Object> APPOINTMENT_PAYMENT_LOCKS = new ConcurrentHashMap<>();
 
     @Autowired
     private PaymentRepository paymentRepository;
@@ -51,80 +56,85 @@ public class PaymentService {
             log.info("Initiating payment for appointment ID: {} with amount: {}",
                     request.getAppointmentId(), request.getAmount());
 
-            // Verify appointment exists (call appointment service)
-            if (appointmentServiceClient != null) {
-                try {
-                    appointmentServiceClient.getAppointmentById(request.getAppointmentId());
-                } catch (Exception e) {
-                    log.warn("Could not verify appointment with service: {}", e.getMessage());
+            synchronized (getAppointmentPaymentLock(request.getAppointmentId())) {
+                // Verify appointment exists (call appointment service)
+                if (appointmentServiceClient != null) {
+                    try {
+                        appointmentServiceClient.getAppointmentById(request.getAppointmentId());
+                    } catch (Exception e) {
+                        log.warn("Could not verify appointment with service: {}", e.getMessage());
+                    }
                 }
+
+                // Reuse existing pending/failed payment so Pay Now can be retried safely.
+                List<Payment> existingPayments = paymentRepository
+                        .findByAppointmentIdOrderByCreatedAtDesc(request.getAppointmentId());
+                if (!existingPayments.isEmpty()) {
+                    if (existingPayments.size() > 1) {
+                        log.warn("Found {} payment rows for appointment ID: {}. Reusing the safest record.",
+                                existingPayments.size(), request.getAppointmentId());
+                    }
+
+                    Payment completedPayment = existingPayments.stream()
+                            .filter(payment -> payment.getPaymentStatus() == PaymentStatus.COMPLETED)
+                            .max(Comparator.comparing(Payment::getCompletedAt,
+                                    Comparator.nullsLast(Comparator.naturalOrder())))
+                            .orElse(null);
+                    if (completedPayment != null) {
+                        throw new RuntimeException("Payment already completed for this appointment");
+                    }
+
+                    Payment reusablePayment = existingPayments.stream()
+                            .filter(payment -> payment.getPaymentStatus() == PaymentStatus.PENDING
+                                    || payment.getPaymentStatus() == PaymentStatus.FAILED)
+                            .findFirst()
+                            .orElse(null);
+
+                    if (reusablePayment != null) {
+                        log.info("Reusing existing payment for appointment ID: {} (paymentId: {}, status: {})",
+                                request.getAppointmentId(), reusablePayment.getId(), reusablePayment.getPaymentStatus());
+                        return mapToResponse(reusablePayment);
+                    }
+                }
+
+                // Convert amount to Stripe format (cents)
+                long stripeAmount = stripePaymentService.convertToStripeAmount(request.getAmount());
+
+                // Create metadata for Stripe
+                Map<String, String> metadata = new HashMap<>();
+                metadata.put("appointmentId", String.valueOf(request.getAppointmentId()));
+                metadata.put("patientId", String.valueOf(request.getPatientId()));
+                metadata.put("doctorId", String.valueOf(request.getDoctorId()));
+
+                // Create Stripe Payment Intent
+                PaymentIntent paymentIntent = stripePaymentService.createPaymentIntent(
+                        stripeAmount,
+                        request.getCurrency().toLowerCase(),
+                        request.getDescription(),
+                        metadata
+                );
+
+                // Save payment record to database
+                Payment payment = Payment.builder()
+                        .appointmentId(request.getAppointmentId())
+                        .patientId(request.getPatientId())
+                        .doctorId(request.getDoctorId())
+                        .amount(request.getAmount())
+                        .currency(request.getCurrency())
+                        .paymentStatus(PaymentStatus.PENDING)
+                        .paymentMethod(PaymentMethod.STRIPE)
+                        .stripePaymentIntentId(paymentIntent.getId())
+                        .stripeClientSecret(paymentIntent.getClientSecret())
+                        .description(request.getDescription())
+                        .notes("Payment initiated via Stripe")
+                        .build();
+
+                payment = paymentRepository.save(payment);
+                log.info("Payment record created with ID: {}, Stripe Intent: {}",
+                        payment.getId(), paymentIntent.getId());
+
+                return mapToResponse(payment);
             }
-
-            // Reuse existing pending/failed payment so Pay Now can be retried safely.
-            List<Payment> existingPayments = paymentRepository
-                    .findByAppointmentIdOrderByCreatedAtDesc(request.getAppointmentId());
-            if (!existingPayments.isEmpty()) {
-                if (existingPayments.size() > 1) {
-                    log.warn("Found {} payment rows for appointment ID: {}. Using latest valid record.",
-                            existingPayments.size(), request.getAppointmentId());
-                }
-
-                boolean hasCompletedPayment = existingPayments.stream()
-                        .anyMatch(payment -> payment.getPaymentStatus() == PaymentStatus.COMPLETED);
-                if (hasCompletedPayment) {
-                    throw new RuntimeException("Payment already completed for this appointment");
-                }
-
-                Payment reusablePayment = existingPayments.stream()
-                        .filter(payment -> payment.getPaymentStatus() == PaymentStatus.PENDING
-                                || payment.getPaymentStatus() == PaymentStatus.FAILED)
-                        .findFirst()
-                        .orElse(null);
-
-                if (reusablePayment != null) {
-                    log.info("Reusing existing payment for appointment ID: {} (paymentId: {}, status: {})",
-                            request.getAppointmentId(), reusablePayment.getId(), reusablePayment.getPaymentStatus());
-                    return mapToResponse(reusablePayment);
-                }
-            }
-
-            // Convert amount to Stripe format (cents)
-            long stripeAmount = stripePaymentService.convertToStripeAmount(request.getAmount());
-
-            // Create metadata for Stripe
-            Map<String, String> metadata = new HashMap<>();
-            metadata.put("appointmentId", String.valueOf(request.getAppointmentId()));
-            metadata.put("patientId", String.valueOf(request.getPatientId()));
-            metadata.put("doctorId", String.valueOf(request.getDoctorId()));
-
-            // Create Stripe Payment Intent
-            PaymentIntent paymentIntent = stripePaymentService.createPaymentIntent(
-                    stripeAmount,
-                    request.getCurrency().toLowerCase(),
-                    request.getDescription(),
-                    metadata
-            );
-
-            // Save payment record to database
-            Payment payment = Payment.builder()
-                    .appointmentId(request.getAppointmentId())
-                    .patientId(request.getPatientId())
-                    .doctorId(request.getDoctorId())
-                    .amount(request.getAmount())
-                    .currency(request.getCurrency())
-                    .paymentStatus(PaymentStatus.PENDING)
-                    .paymentMethod(PaymentMethod.STRIPE)
-                    .stripePaymentIntentId(paymentIntent.getId())
-                    .stripeClientSecret(paymentIntent.getClientSecret())
-                    .description(request.getDescription())
-                    .notes("Payment initiated via Stripe")
-                    .build();
-
-            payment = paymentRepository.save(payment);
-            log.info("Payment record created with ID: {}, Stripe Intent: {}",
-                    payment.getId(), paymentIntent.getId());
-
-            return mapToResponse(payment);
         } catch (Exception e) {
             log.error("Failed to initiate payment: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to initiate payment: " + e.getMessage());
@@ -152,8 +162,13 @@ public class PaymentService {
     public PaymentResponse getPaymentByAppointmentId(Long appointmentId) {
         List<Payment> payments = paymentRepository.findByAppointmentIdOrderByCreatedAtDesc(appointmentId);
         Payment payment = payments.stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Payment not found for appointment ID: " + appointmentId));
+                .filter(item -> item.getPaymentStatus() == PaymentStatus.COMPLETED)
+                .max(Comparator.comparing(Payment::getCompletedAt,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .orElseGet(() -> payments.stream().findFirst().orElse(null));
+        if (payment == null) {
+            throw new RuntimeException("Payment not found for appointment ID: " + appointmentId);
+        }
         return mapToResponse(payment);
     }
 
@@ -189,6 +204,11 @@ public class PaymentService {
             // Retrieve payment from database
             Payment payment = paymentRepository.findByStripePaymentIntentId(stripePaymentIntentId)
                     .orElseThrow(() -> new RuntimeException("Payment not found for Stripe Intent: " + stripePaymentIntentId));
+
+            if (payment.getPaymentStatus() == PaymentStatus.COMPLETED) {
+                log.info("Payment already marked as COMPLETED for Stripe Intent: {}", stripePaymentIntentId);
+                return mapToResponse(payment);
+            }
 
             // Verify payment with Stripe
             PaymentIntent paymentIntent = stripePaymentService.retrievePaymentIntent(stripePaymentIntentId);
@@ -338,6 +358,10 @@ public class PaymentService {
                 .completedAt(payment.getCompletedAt())
                 .notes(payment.getNotes())
                 .build();
+    }
+
+    private Object getAppointmentPaymentLock(Long appointmentId) {
+        return APPOINTMENT_PAYMENT_LOCKS.computeIfAbsent(appointmentId, ignored -> new Object());
     }
 }
 

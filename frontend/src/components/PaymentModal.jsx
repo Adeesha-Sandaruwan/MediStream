@@ -3,10 +3,14 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { AlertCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { initiatePayment, completePayment } from '../api/paymentApi';
+import { initiatePayment, completePayment, getPaymentByAppointment } from '../api/paymentApi';
 import './PaymentModal.css';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY || 'pk_test_your_stripe_public_key_here');
+const paymentSessionCache = new Map();
+const paymentInitializationRequests = new Map();
+
+const buildPaymentSessionKey = (appointmentId) => `appointment:${appointmentId}`;
 
 /**
  * Payment Form Component
@@ -191,6 +195,8 @@ export default function PaymentModal({
   useEffect(() => {
     if (!isOpen || !appointmentId) return;
 
+    const paymentSessionKey = buildPaymentSessionKey(appointmentId);
+
     const initializePayment = async () => {
       setIsLoading(true);
       setError('');
@@ -206,22 +212,50 @@ export default function PaymentModal({
           throw new Error('Unable to determine doctor ID for payment. Please refresh and try again.');
         }
 
+        const cachedPayment = paymentSessionCache.get(paymentSessionKey);
+        if (cachedPayment?.stripeClientSecret) {
+          setClientSecret(cachedPayment.stripeClientSecret);
+          return;
+        }
+
+        const existingRequest = paymentInitializationRequests.get(paymentSessionKey);
+        if (existingRequest) {
+          const existingPayment = await existingRequest;
+          setClientSecret(existingPayment.stripeClientSecret);
+          return;
+        }
+
         // Get consultation fee - use amount passed in or from appointment
         const paymentAmount = amount || 5000; // Default amount
 
-        const paymentResponse = await initiatePayment(token, {
-          appointmentId: parseInt(appointmentId),
-          patientId: parsedPatientId,
-          doctorId: parsedDoctorId,
-          amount: parseFloat(paymentAmount),
-          currency: 'LKR', // Default to LKR for Sri Lanka
-          description: `Consultation with Dr. ${doctorName}`,
-          returnUrl: `${window.location.origin}/patient-appointments`,
-        });
+        const initializationPromise = (async () => {
+          const existingPayment = await getPaymentByAppointment(token, appointmentId).catch(() => null);
+          if (existingPayment?.paymentStatus === 'COMPLETED') {
+            throw new Error('Payment has already been completed for this appointment.');
+          }
+          if (existingPayment?.stripeClientSecret) {
+            return existingPayment;
+          }
+
+          return initiatePayment(token, {
+            appointmentId: parseInt(appointmentId, 10),
+            patientId: parsedPatientId,
+            doctorId: parsedDoctorId,
+            amount: parseFloat(paymentAmount),
+            currency: 'LKR', // Default to LKR for Sri Lanka
+            description: `Consultation with Dr. ${doctorName}`,
+            returnUrl: `${window.location.origin}/patient-appointments`,
+          });
+        })();
+
+        paymentInitializationRequests.set(paymentSessionKey, initializationPromise);
+        const paymentResponse = await initializationPromise;
+        paymentSessionCache.set(paymentSessionKey, paymentResponse);
 
         setClientSecret(paymentResponse.stripeClientSecret);
       } catch (err) {
         console.error('Error initializing payment:', err);
+        paymentSessionCache.delete(paymentSessionKey);
         const responseData = err?.response?.data;
         let backendMessage = '';
 
@@ -237,6 +271,7 @@ export default function PaymentModal({
         const message = backendMessage || err?.message || 'Failed to initialize payment. Please try again.';
         setError(message);
       } finally {
+        paymentInitializationRequests.delete(paymentSessionKey);
         setIsLoading(false);
       }
     };
@@ -373,6 +408,8 @@ export default function PaymentModal({
                 clientSecret={clientSecret}
                 appointmentId={appointmentId}
                 onSuccess={(paymentIntent, meta) => {
+                  paymentSessionCache.delete(buildPaymentSessionKey(appointmentId));
+                  paymentInitializationRequests.delete(buildPaymentSessionKey(appointmentId));
                   onSuccess(paymentIntent, meta);
                   onClose();
                 }}
