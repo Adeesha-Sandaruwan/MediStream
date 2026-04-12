@@ -125,6 +125,15 @@ export const getAppointmentDetailsById = async (token, appointmentId) => {
   return response.json();
 };
 
+export const getAppointmentPatientReports = async (token, appointmentId) => {
+  const response = await fetch(`${API_BASE}/appointments/${appointmentId}/reports`, {
+    method: 'GET',
+    headers: buildHeaders(token),
+  });
+  if (!response.ok) throw new Error(await parseError(response, 'Failed to fetch patient reports'));
+  return response.json();
+};
+
 export const getMyPrescriptions = async (token) => {
   const response = await fetch(`${API_BASE}/prescriptions/mine`, {
     method: 'GET',

@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -43,6 +44,9 @@ public class DoctorAppointmentService {
 
     @Value("${services.telemedicine.url:http://localhost:8083}")
     private String telemedicineServiceUrl;
+
+    @Value("${services.patient.url:http://localhost:8082}")
+    private String patientServiceUrl;
 
     public DoctorAppointmentRequest createPendingRequest(String doctorEmail, DoctorAppointmentRequestDto dto) {
         DoctorAppointmentRequest request = doctorAppointmentRequestRepository
@@ -402,5 +406,33 @@ public class DoctorAppointmentService {
         request.setUpdatedAt(LocalDateTime.now());
 
         return doctorAppointmentRequestRepository.save(request);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> getPatientReportsForAppointment(String doctorEmail, Long appointmentId) {
+        DoctorAppointmentRequest request = doctorAppointmentRequestRepository.findByAppointmentId(appointmentId)
+                .orElseThrow(() -> new RuntimeException("Appointment request not found"));
+
+        if (!request.getDoctorEmail().equalsIgnoreCase(doctorEmail)) {
+            throw new RuntimeException("You are not allowed to view reports for this appointment");
+        }
+
+        String patientEmail = request.getPatientEmail();
+        if (patientEmail == null || patientEmail.isBlank()) {
+            throw new RuntimeException("Patient email is missing for this appointment");
+        }
+
+        String endpoint = UriComponentsBuilder
+                .fromHttpUrl(patientServiceUrl + "/api/patients/reports/internal/by-email")
+                .queryParam("patientEmail", patientEmail)
+                .toUriString();
+
+        try {
+            ResponseEntity<List> response = restTemplate.getForEntity(endpoint, List.class);
+            List<Map<String, Object>> rows = response.getBody();
+            return rows == null ? List.of() : rows;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load patient reports from patient service: " + e.getMessage(), e);
+        }
     }
 }

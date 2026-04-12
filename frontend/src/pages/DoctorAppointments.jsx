@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { completeAppointment, decideAppointment, getAppointmentDetailsById, getDoctorAppointments } from '../api/doctorApi';
+import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments } from '../api/doctorApi';
+import { downloadReportSecurely } from '../api/patientApi';
 
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 export default function DoctorAppointments() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [appointments, setAppointments] = useState([]);
@@ -19,6 +21,11 @@ export default function DoctorAppointments() {
   const [scheduledStartLocal, setScheduledStartLocal] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [regenerateLink, setRegenerateLink] = useState(false);
+  const [reportsModal, setReportsModal] = useState(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reportsError, setReportsError] = useState('');
+  const [reportRows, setReportRows] = useState([]);
+  const [downloadingFileName, setDownloadingFileName] = useState('');
 
   const toDatetimeLocalValue = (input) => {
     const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
@@ -129,6 +136,43 @@ export default function DoctorAppointments() {
     }
   };
 
+  const handleOpenTelemedicineForAppointment = (item) => {
+    navigate(`/telemedicine?appointmentId=${item.appointmentId}`);
+  };
+
+  const handleOpenReports = async (item) => {
+    setReportsModal({ appointmentId: item.appointmentId, patientEmail: item.patientEmail });
+    setLoadingReports(true);
+    setReportsError('');
+    setReportRows([]);
+    try {
+      const rows = await getAppointmentPatientReports(token, item.appointmentId);
+      setReportRows(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      setReportsError(err.message || 'Failed to load reports');
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const handleDownloadReport = async (row) => {
+    const fileName = row?.storedFileName || row?.stored_file_name;
+    const originalName = row?.originalFileName || row?.original_file_name || fileName;
+    if (!fileName) {
+      setReportsError('Selected report does not include a downloadable file name');
+      return;
+    }
+    setDownloadingFileName(fileName);
+    setReportsError('');
+    try {
+      await downloadReportSecurely(token, fileName, originalName);
+    } catch (err) {
+      setReportsError(err.message || 'Failed to download report');
+    } finally {
+      setDownloadingFileName('');
+    }
+  };
+
   const getStatusStyle = (status) => {
     if (status === 'ACCEPTED' || status === 'APPROVED') return 'bg-emerald-100 text-emerald-700';
     if (status === 'REJECTED') return 'bg-red-100 text-red-700';
@@ -222,6 +266,18 @@ export default function DoctorAppointments() {
 
       {(item.status === 'ACCEPTED' || item.status === 'APPROVED') && (
         <div className="flex flex-wrap gap-2 mt-4 w-full">
+          <button
+            onClick={() => handleOpenTelemedicineForAppointment(item)}
+            className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Video className="mr-1" size={16} /> Open Telemedicine
+          </button>
+          <button
+            onClick={() => handleOpenReports(item)}
+            className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <FileText className="mr-1" size={16} /> View Reports
+          </button>
           <button
             onClick={() => handleCompleteAppointment(item.appointmentId)}
             disabled={completingId === item.appointmentId}
@@ -386,6 +442,73 @@ export default function DoctorAppointments() {
               >
                 Confirm {notesModal.status === 'ACCEPTED' ? 'Accept' : 'Reject'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportsModal && (
+        <div className="fixed inset-0 z-[120] bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Patient Uploaded Reports</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Appointment #{reportsModal.appointmentId} • {reportsModal.patientEmail}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setReportsModal(null);
+                  setReportRows([]);
+                  setReportsError('');
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100"
+                aria-label="Close reports"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+              {loadingReports && <p className="text-sm text-gray-600">Loading reports...</p>}
+              {reportsError && (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reportsError}</p>
+              )}
+              {!loadingReports && !reportsError && reportRows.length === 0 && (
+                <p className="text-sm text-gray-600">No reports have been uploaded yet for this patient.</p>
+              )}
+
+              {!loadingReports && reportRows.length > 0 && (
+                <ul className="space-y-2">
+                  {reportRows.map((row, idx) => {
+                    const key = row?.id || `${row?.storedFileName || row?.stored_file_name || 'row'}-${idx}`;
+                    const originalName = row?.originalFileName || row?.original_file_name || 'Report file';
+                    const uploadedAt = row?.uploadDate || row?.upload_date;
+                    const storedFileName = row?.storedFileName || row?.stored_file_name;
+                    return (
+                      <li key={key} className="border border-gray-200 rounded-xl p-3 bg-gray-50/60">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 break-all">{originalName}</p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {uploadedAt ? new Date(uploadedAt).toLocaleString() : 'Upload time unavailable'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={!storedFileName || downloadingFileName === storedFileName}
+                            onClick={() => handleDownloadReport(row)}
+                            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                          >
+                            {downloadingFileName === storedFileName ? 'Downloading...' : 'Download'}
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         </div>
