@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   BadgeCheck,
   Sparkles,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -60,6 +61,17 @@ export default function DoctorDashboard() {
       buttonClasses: 'bg-violet-600 hover:bg-violet-700',
       locked: !isApproved,
       cardAccent: 'border-violet-200',
+    },
+    {
+      title: 'Earnings & Wallet',
+      description: 'View your earnings from appointments, manage wallet balance, and request bank withdrawals.',
+      to: '/doctor-wallet',
+      action: 'Manage Earnings',
+      icon: Wallet,
+      iconClasses: 'bg-emerald-100 text-emerald-700',
+      buttonClasses: 'bg-emerald-600 hover:bg-emerald-700',
+      locked: false,
+      cardAccent: 'border-emerald-200',
     },
   ];
 

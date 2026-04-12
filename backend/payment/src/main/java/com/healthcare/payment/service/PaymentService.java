@@ -38,6 +38,9 @@ public class PaymentService {
     @Autowired(required = false)
     private AppointmentServiceClient appointmentServiceClient;
 
+    @Autowired
+    private WalletService walletService;
+
     /**
      * Initiate a payment for an appointment
      * Creates a Stripe Payment Intent and saves payment record
@@ -213,6 +216,21 @@ public class PaymentService {
             payment = paymentRepository.save(payment);
             log.info("Payment status updated to COMPLETED for ID: {}. Platform fee: {}, Doctor earnings: {}",
                     payment.getId(), payment.getPlatformFee(), payment.getDoctorEarnings());
+
+            // Credit payment to wallet ledgers
+            try {
+                walletService.creditPaymentToWallets(
+                    payment.getId(),
+                    payment.getPlatformFee(),
+                    payment.getDoctorId(),
+                    payment.getDoctorEarnings(),
+                    "Payment from appointment " + payment.getAppointmentId()
+                );
+                log.info("Credited payment {} to wallet ledgers", payment.getId());
+            } catch (Exception e) {
+                log.error("Failed to credit payment to wallets: {}", e.getMessage());
+                // Don't throw - payment is already completed, wallet credit is best-effort
+            }
 
             // Sync appointment payment state. Doctor approval happens in doctor-service flow.
             if (appointmentServiceClient != null) {
@@ -464,6 +482,16 @@ public class PaymentService {
             payment = paymentRepository.save(payment);
             log.info("Doctor payout marked COMPLETED for payment ID: {}, Amount: {}", 
                     payment.getId(), payment.getDoctorEarnings());
+
+            // Release doctor earnings from reserved to available in wallet
+            try {
+                walletService.releaseDoctorEarnings(payment.getDoctorId(), payment.getDoctorEarnings());
+                log.info("Released doctor earnings {} for doctor ID: {} to available balance", 
+                        payment.getDoctorEarnings(), payment.getDoctorId());
+            } catch (Exception e) {
+                log.error("Failed to release doctor earnings to wallet: {}", e.getMessage());
+                // Don't throw - payout is already marked complete, wallet update is best-effort
+            }
 
             return mapToResponse(payment);
         } catch (Exception e) {

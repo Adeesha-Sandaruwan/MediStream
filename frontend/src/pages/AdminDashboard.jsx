@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllUsers, createUser, deleteUser, updateUserStatus } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
-import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart, BellRing, AlertTriangle, Info, DollarSign } from 'lucide-react';
+import { Users, ShieldAlert, Loader2, UserPlus, Trash2, X, CheckCircle, Clock, AlertOctagon, Activity, FileText, Eye, Phone, MapPin, Award, Building, BarChart3, PieChart, BellRing, AlertTriangle, Info, DollarSign, Wallet } from 'lucide-react';
 import AdminTransactionMonitor from '../components/AdminTransactionMonitor';
+import AdminWalletView from '../components/AdminWalletView';
 
 const AdminDashboard = () => {
     const { token } = useAuth();
@@ -253,6 +254,7 @@ const AdminDashboard = () => {
                 {[
                     { id: 'users', label: 'User Management', icon: Users },
                     { id: 'transactions', label: 'Payment Transactions', icon: DollarSign },
+                    { id: 'wallet', label: 'Wallet Management', icon: Wallet },
                 ].map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -491,6 +493,11 @@ const AdminDashboard = () => {
             {/* Payment Transactions Tab Content */}
             {activeTab === 'transactions' && (
                 <AdminTransactionMonitor />
+            )}
+
+            {/* Wallet Management Tab Content */}
+            {activeTab === 'wallet' && (
+                <AdminWalletView />
             )}
 
             {activeTab === 'users' && showModal && (
