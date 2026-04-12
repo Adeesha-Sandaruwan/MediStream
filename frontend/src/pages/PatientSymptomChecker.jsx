@@ -59,19 +59,19 @@ export default function PatientSymptomChecker() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-linear-to-b from-amber-50 via-white to-orange-50">
-      <div className="absolute -top-24 -left-20 h-72 w-72 rounded-full bg-amber-300/25 blur-3xl" />
-      <div className="absolute top-32 -right-20 h-72 w-72 rounded-full bg-orange-300/20 blur-3xl" />
+    <div className="relative min-h-[calc(100vh-80px)] overflow-hidden bg-linear-to-b from-blue-50 via-white to-indigo-50">
+      <div className="absolute -top-24 -left-20 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl" />
+      <div className="absolute top-32 -right-20 h-72 w-72 rounded-full bg-indigo-300/15 blur-3xl" />
 
       <div className="relative mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <section className="animate-[fadeIn_0.5s_ease-out] rounded-3xl border border-amber-200 bg-linear-to-r from-amber-500 to-orange-500 p-6 text-white shadow-xl shadow-orange-400/20 sm:p-8">
+        <section className="animate-[fadeIn_0.5s_ease-out] rounded-3xl border border-indigo-200 bg-linear-to-r from-blue-700 via-indigo-700 to-cyan-700 p-6 text-white shadow-xl shadow-indigo-500/25 sm:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider">
                 <Sparkles size={14} /> AI Symptom Checker
               </p>
               <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Describe Symptoms, Get Early Guidance</h1>
-              <p className="mt-2 max-w-2xl text-orange-50">
+              <p className="mt-2 max-w-2xl text-indigo-50 opacity-95">
                 This tool gives preliminary suggestions and recommended specialties for faster next steps, not a confirmed diagnosis.
               </p>
             </div>
@@ -96,7 +96,7 @@ export default function PatientSymptomChecker() {
               >
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{step.title}</p>
                 <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-slate-800">
-                  <Icon size={16} className="text-orange-600" /> {step.text}
+                  <Icon size={16} className="text-blue-600" /> {step.text}
                 </p>
               </article>
             );
@@ -117,7 +117,7 @@ export default function PatientSymptomChecker() {
                   onChange={handleChange}
                   rows={6}
                   placeholder="Example: Fever for 2 days, sore throat, dry cough and mild chest discomfort"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   maxLength={2000}
                   required
                 />
@@ -134,7 +134,7 @@ export default function PatientSymptomChecker() {
                     max="130"
                     value={form.age}
                     onChange={handleChange}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                 </div>
                 <div>
@@ -145,7 +145,7 @@ export default function PatientSymptomChecker() {
                     value={form.gender}
                     onChange={handleChange}
                     maxLength={32}
-                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                   />
                 </div>
               </div>
@@ -160,7 +160,7 @@ export default function PatientSymptomChecker() {
                   rows={3}
                   maxLength={2000}
                   placeholder="Example: Asthma, diabetes, currently taking blood pressure medication"
-                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-200"
+                  className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </div>
             </div>
@@ -174,7 +174,7 @@ export default function PatientSymptomChecker() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-70"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loading ? <LoaderCircle className="animate-spin" size={18} /> : <Sparkles size={18} />}
               {loading ? 'Analyzing Symptoms...' : 'Analyze Symptoms'}
@@ -191,7 +191,7 @@ export default function PatientSymptomChecker() {
             )}
 
             {loading && (
-              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-orange-50 p-4 text-sm font-medium text-orange-800">
+              <div className="mt-4 flex items-center gap-3 rounded-2xl bg-blue-50 p-4 text-sm font-medium text-blue-800">
                 <LoaderCircle className="animate-spin" size={18} /> AI is preparing your preliminary guidance...
               </div>
             )}
@@ -218,14 +218,14 @@ export default function PatientSymptomChecker() {
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recommended specialties</p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(result.recommendedDoctorSpecialties || []).map((specialty) => (
-                      <span key={specialty} className="rounded-full bg-orange-100 px-3 py-1 text-xs font-semibold text-orange-700">
+                      <span key={specialty} className="rounded-full bg-cyan-100 px-3 py-1 text-xs font-semibold text-cyan-700">
                         {specialty}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+                <p className="rounded-xl border border-indigo-300 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-800">
                   {result.disclaimer}
                 </p>
               </div>

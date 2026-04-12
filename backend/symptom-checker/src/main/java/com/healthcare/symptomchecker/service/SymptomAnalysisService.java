@@ -26,7 +26,7 @@ public class SymptomAnalysisService {
 
     private static final Logger logger = LoggerFactory.getLogger(SymptomAnalysisService.class);
     private static final String DEFAULT_DISCLAIMER = "This is a preliminary guidance tool only and not a medical diagnosis. Consult a licensed doctor for clinical decisions.";
-    private static final Duration API_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration API_TIMEOUT = Duration.ofSeconds(30);
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -37,7 +37,7 @@ public class SymptomAnalysisService {
     public SymptomAnalysisService(
             ObjectMapper objectMapper,
             @Value("${ai.gemini.api-key:}") String geminiApiKey,
-            @Value("${ai.gemini.model:gemini-1.5-flash}") String geminiModel,
+            @Value("${ai.gemini.model:gemini-flash-latest}") String geminiModel,
             @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}") String geminiBaseUrl
     ) {
         this.httpClient = HttpClient.newBuilder()
@@ -83,20 +83,26 @@ public class SymptomAnalysisService {
                         .put("topP", 0.95)
                         .put("responseMimeType", "application/json"));
 
-        String url = String.format("%s/%s:generateContent?key=%s", geminiBaseUrl, geminiModel, geminiApiKey);
+        // Construct the Gemini API URL using X-goog-api-key header (recommended method)
+        String url = String.format("%s/%s:generateContent", geminiBaseUrl, geminiModel);
+        logger.info("Calling Gemini API endpoint: {}", url);
 
         HttpRequest httpRequest = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .timeout(API_TIMEOUT)
                 .header("Content-Type", "application/json")
+                .header("X-goog-api-key", geminiApiKey)
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(payload)))
                 .build();
 
         HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
-            logger.error("Gemini API error: HTTP {}. Response: {}", response.statusCode(), response.body());
-            throw new IllegalStateException("Gemini API error: " + response.statusCode());
+            logger.error("Gemini API error: HTTP {}. URL: {}. Response body: {}", 
+                response.statusCode(), 
+                url, 
+                response.body());
+            throw new IllegalStateException("Gemini API error: " + response.statusCode() + " - " + response.body());
         }
 
         return parseGeminiResponse(response.body());
@@ -140,28 +146,60 @@ public class SymptomAnalysisService {
         String age = request.age() == null ? "Not specified" : request.age().toString();
 
         return """
-                Analyze the patient symptoms and respond ONLY with valid JSON (no markdown, code fences, or extra text).
+                You are a medical triage AI assistant. Analyze patient symptoms comprehensively and respond ONLY with valid JSON.
                 
-                Response format:
+                RESPONSE FORMAT (MUST BE VALID JSON):
                 {
                   "urgencyLevel": "LOW|MODERATE|HIGH",
-                  "preliminarySuggestions": ["suggestion1", "suggestion2"],
+                  "preliminarySuggestions": ["specific suggestion based on symptoms", "contextual advice", "symptom-related guidance"],
                   "recommendedDoctorSpecialties": ["specialty1", "specialty2"],
-                  "disclaimer": "This is preliminary guidance only, not a diagnosis."
+                  "disclaimer": "This is preliminary guidance only, not a medical diagnosis. Consult a licensed physician for proper evaluation."
                 }
                 
-                Instructions:
-                - Urgency: HIGH if emergency symptoms (chest pain, severe breathing issues, unconsciousness); MODERATE if concerning (high fever, severe pain); LOW otherwise.
-                - Suggestions: 2-3 practical, non-diagnostic health tips.
-                - Specialties: Recommend 1-3 most relevant medical specialties.
-                - Never diagnose, prescribe, or provide dosages.
+                URGENCY ASSESSMENT CRITERIA:
+                - HIGH: Chest/heart pain, difficulty breathing, fainting, unconsciousness, severe bleeding, stroke signs, acute severe pain
+                - MODERATE: High fever (>39°C), severe persistent vomiting, bloody discharge, significant pain, worsening symptoms
+                - LOW: Mild to moderate symptoms, manageable discomfort, stable condition
                 
-                Patient data:
-                Symptoms: %s
-                Age: %s
-                Gender: %s  
-                Medical history: %s
-                """.formatted(request.symptoms(), age, gender, history);
+                SUGGESTION GENERATION (3 specific, actionable tips):
+                - First suggestion: Immediate self-care action specific to the presented symptoms
+                - Second suggestion: Symptom monitoring or management strategy based on symptom pattern and age
+                - Third suggestion: Lifestyle/hygiene modification or when to seek help (timing based on urgency level)
+                - MUST be specific to the symptoms, not generic advice
+                - Include symptom-specific monitoring (e.g., "Monitor fever every 4 hours if high fever present")
+                - Consider age and medical history for personalized recommendations
+                - Focus on comfort, monitoring, and red flags to watch for
+                
+                SPECIALTY RECOMMENDATION CRITERIA (2-3 specialties, most relevant first):
+                - Analyze symptom patterns to match exact medical specialties
+                - Consider age-related conditions and medical history
+                - Primary specialty first (most likely cause), secondary specialties for differential diagnosis
+                - Example mappings:
+                  * Chest pain + heart palpitations + breathlessness → Cardiology (primary), Pulmonology (secondary)
+                  * Persistent headache + dizziness + numbness → Neurology (primary)
+                  * Stomach pain + nausea + diarrhea → Gastroenterology (primary), sometimes Infectious Disease
+                  * Joint pain + swelling + limited mobility → Orthopedics (primary), Rheumatology (if systemic)
+                  * Persistent cough + breathlessness + wheezing → Pulmonology (primary), ENT (if throat involved)
+                  * Fever + body ache + cough → General Medicine (initial), then Pulmonology if respiratory focused
+                  * Skin rash + itching → Dermatology (primary), General Medicine (if systemic)
+                  * Anxiety + sleep issues + fatigue → Psychiatry (primary), General Medicine (for medical causes)
+                
+                PATIENT PROFILE:
+                Age: %s (adjust suggestions and specialties accordingly - elderly: more cardiac/neurological focus, children: infection/growth focus)
+                Gender: %s (note gender-specific conditions when relevant)
+                Medical History: %s (consider interactions and contraindications)
+                Current Symptoms: %s
+                
+                CRITICAL RULES:
+                - NEVER diagnose or suggest specific diseases
+                - NEVER recommend medications or dosages
+                - DO be specific and actionable in suggestions
+                - DO tailor recommendations to the exact symptoms provided
+                - DO consider the patient's age and medical history
+                - DO NOT provide generic advice; each suggestion must reference the symptoms
+                - Ensure descriptions fit real medical specialties
+                - Return ONLY the JSON object, no markdown, code fences, or extra text
+                """.formatted(age, gender, history, request.symptoms());
     }
 
     private String stripCodeFence(String text) {
