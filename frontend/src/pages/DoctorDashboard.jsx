@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   BadgeCheck,
   Sparkles,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 

@@ -101,3 +101,78 @@ export const refundPayment = async (token, paymentId) => {
   }
 };
 
+// ==================== ADMIN ENDPOINTS ====================
+
+/**
+ * Get all completed transactions (Admin Dashboard)
+ */
+export const getAllCompletedTransactions = async (token) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/admin/transactions/all`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching completed transactions:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get global transaction ledger (all statuses and money movements)
+ */
+export const getGlobalTransactionLedger = async (token) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/admin/transactions/ledger`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching global transaction ledger:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all transactions for a specific doctor
+ */
+export const getDoctorTransactions = async (token, doctorId) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/admin/doctor/${doctorId}/transactions`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching doctor transactions:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get transaction metrics and summary
+ */
+export const getTransactionMetrics = async (token) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/admin/metrics`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching transaction metrics:', error);
+    throw error;
+  }
+};
+
+

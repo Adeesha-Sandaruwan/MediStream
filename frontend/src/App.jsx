@@ -155,7 +155,7 @@ export default function App() {
 
                 <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
                 <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
-                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
+\                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
                 <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 

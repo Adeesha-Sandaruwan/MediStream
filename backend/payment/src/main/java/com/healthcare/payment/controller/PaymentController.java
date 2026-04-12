@@ -184,6 +184,144 @@ public class PaymentController {
         }
     }
 
+    // ==================== ADMIN ENDPOINTS ====================
+
+    /**
+     * Get all completed payments (Admin Dashboard)
+     *
+     * @return List of all completed payments with fee information
+     */
+    @GetMapping("/admin/transactions/all")
+    @Operation(summary = "Get All Completed Transactions",
+              description = "Admin endpoint: Retrieve all completed transactions with fee breakdown")
+    public ResponseEntity<List<PaymentResponse>> getAllCompletedTransactions() {
+        try {
+            log.info("Fetching all completed transactions for admin");
+            List<PaymentResponse> transactions = paymentService.getAllCompletedPayments();
+            return ResponseEntity.ok(transactions);
+        } catch (Exception e) {
+            log.error("Error fetching completed transactions: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get global transaction ledger with all money movements (Admin Dashboard)
+     *
+     * @return List of all transactions across all payment statuses
+     */
+    @GetMapping("/admin/transactions/ledger")
+    @Operation(summary = "Get Global Transaction Ledger",
+            description = "Admin endpoint: Retrieve all payment movements with all statuses")
+    public ResponseEntity<List<PaymentResponse>> getGlobalTransactionLedger() {
+        try {
+            log.info("Fetching global transaction ledger for admin");
+            List<PaymentResponse> transactions = paymentService.getGlobalTransactionLedger();
+            return ResponseEntity.ok(transactions);
+        } catch (Exception e) {
+            log.error("Error fetching global transaction ledger: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get all pending doctor payouts (Admin Wallet)
+     *
+     * @return List of payments pending doctor payout
+     */
+    @GetMapping("/admin/payouts/pending")
+    @Operation(summary = "Get Pending Doctor Payouts",
+              description = "Admin endpoint: Retrieve all payments pending doctor payout")
+    public ResponseEntity<List<PaymentResponse>> getPendingPayouts() {
+        try {
+            log.info("Fetching pending doctor payouts for admin");
+            List<PaymentResponse> pendingPayouts = paymentService.getPendingPayouts();
+            return ResponseEntity.ok(pendingPayouts);
+        } catch (Exception e) {
+            log.error("Error fetching pending payouts: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get all payments for a specific doctor (Admin Wallet)
+     *
+     * @param doctorId Doctor ID
+     * @return List of payments for the doctor
+     */
+    @GetMapping("/admin/doctor/{doctorId}/transactions")
+    @Operation(summary = "Get Doctor Transactions",
+              description = "Admin endpoint: Retrieve all completed payments for a specific doctor")
+    public ResponseEntity<List<PaymentResponse>> getDoctorTransactions(@PathVariable Long doctorId) {
+        try {
+            log.info("Fetching transactions for doctor ID: {}", doctorId);
+            List<PaymentResponse> doctorTransactions = paymentService.getPaymentsByDoctor(doctorId);
+            return ResponseEntity.ok(doctorTransactions);
+        } catch (Exception e) {
+            log.error("Error fetching doctor transactions: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Get transaction metrics and summary (Admin Dashboard)
+     *
+     * @return Map of transaction statistics and metrics
+     */
+    @GetMapping("/admin/metrics")
+    @Operation(summary = "Get Transaction Metrics",
+              description = "Admin endpoint: Retrieve transaction statistics and revenue metrics")
+    public ResponseEntity<Map<String, Object>> getTransactionMetrics() {
+        try {
+            log.info("Fetching transaction metrics for admin");
+            Map<String, Object> metrics = paymentService.getTransactionMetrics();
+            return ResponseEntity.ok(metrics);
+        } catch (Exception e) {
+            log.error("Error fetching transaction metrics: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Mark payment as paid out to doctor
+     *
+     * @param paymentId Payment ID
+     * @return Updated PaymentResponse
+     */
+    @PostMapping("/admin/payouts/{paymentId}/mark-completed")
+    @Operation(summary = "Mark Doctor Payout Completed",
+              description = "Admin endpoint: Mark a payment as paid out to doctor")
+    public ResponseEntity<PaymentResponse> markDoctorPayoutCompleted(@PathVariable Long paymentId) {
+        try {
+            log.info("Marking doctor payout as completed for payment ID: {}", paymentId);
+            PaymentResponse response = paymentService.markDoctorPayoutCompleted(paymentId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error marking doctor payout as completed: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
+     * Mark multiple payments as paid out to doctors (Batch Operation)
+     *
+     * @param paymentIds List of payment IDs to mark as completed
+     * @return List of updated PaymentResponse
+     */
+    @PostMapping("/admin/payouts/batch-mark-completed")
+    @Operation(summary = "Batch Mark Doctor Payouts Completed",
+              description = "Admin endpoint: Mark multiple payments as paid out in batch operation")
+    public ResponseEntity<List<PaymentResponse>> batchMarkDoctorPayoutsCompleted(@RequestBody List<Long> paymentIds) {
+        try {
+            log.info("Batch marking {} doctor payouts as completed", paymentIds.size());
+            List<PaymentResponse> responses = paymentService.markBatchDoctorPayoutsCompleted(paymentIds);
+            return ResponseEntity.ok(responses);
+        } catch (Exception e) {
+            log.error("Error in batch marking doctor payouts: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
     /**
      * Health check endpoint
      */
