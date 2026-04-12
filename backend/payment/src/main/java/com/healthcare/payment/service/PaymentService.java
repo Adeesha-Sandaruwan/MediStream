@@ -388,6 +388,19 @@ public class PaymentService {
     }
 
     /**
+     * Get global transaction ledger with every payment movement
+     * (PENDING, COMPLETED, FAILED, REFUNDED, etc.) in newest-first order.
+     *
+     * @return List of all payment records for admin ledger view
+     */
+    public List<PaymentResponse> getGlobalTransactionLedger() {
+        return paymentRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Get all payments pending doctor payout
      *
      * @return List of payments with pending payout status

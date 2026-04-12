@@ -206,6 +206,25 @@ public class PaymentController {
     }
 
     /**
+     * Get global transaction ledger with all money movements (Admin Dashboard)
+     *
+     * @return List of all transactions across all payment statuses
+     */
+    @GetMapping("/admin/transactions/ledger")
+    @Operation(summary = "Get Global Transaction Ledger",
+            description = "Admin endpoint: Retrieve all payment movements with all statuses")
+    public ResponseEntity<List<PaymentResponse>> getGlobalTransactionLedger() {
+        try {
+            log.info("Fetching global transaction ledger for admin");
+            List<PaymentResponse> transactions = paymentService.getGlobalTransactionLedger();
+            return ResponseEntity.ok(transactions);
+        } catch (Exception e) {
+            log.error("Error fetching global transaction ledger: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Get all pending doctor payouts (Admin Wallet)
      *
      * @return List of payments pending doctor payout

@@ -10,9 +10,12 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
-  getAllCompletedTransactions,
+  getGlobalTransactionLedger,
   getTransactionMetrics,
 } from '../api/paymentApi';
+import { getAllUsers } from '../api/adminApi';
+import { getAllPatients } from '../api/patientApi';
+import { getAllDoctors } from '../api/doctorApi';
 
 const AdminTransactionMonitor = () => {
   const { token } = useAuth();
@@ -23,10 +26,14 @@ const AdminTransactionMonitor = () => {
   // Overview tab state
   const [metrics, setMetrics] = useState(null);
 
-  // Transactions tab state
+  // ==================== GLOBAL TRANSACTION LEDGER LOGIC: STATE ====================
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateRangeFilter, setDateRangeFilter] = useState('LAST_30_DAYS');
+  const [patientNameById, setPatientNameById] = useState({});
+  const [doctorNameById, setDoctorNameById] = useState({});
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
@@ -36,9 +43,45 @@ const AdminTransactionMonitor = () => {
         const metricsData = await getTransactionMetrics(token);
         setMetrics(metricsData);
       } else if (activeTab === 'transactions') {
-        const transactionsData = await getAllCompletedTransactions(token);
-        setTransactions(transactionsData);
-        setFilteredTransactions(transactionsData);
+        // ==================== GLOBAL TRANSACTION LEDGER LOGIC: DATA FETCH ====================
+        const [ledgerData, users, patients, doctors] = await Promise.all([
+          getGlobalTransactionLedger(token),
+          getAllUsers(token),
+          getAllPatients(token),
+          getAllDoctors(token),
+        ]);
+
+        const patientEmailToName = patients.reduce((acc, profile) => {
+          if (profile?.email) {
+            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+            acc[profile.email] = fullName || profile.email;
+          }
+          return acc;
+        }, {});
+
+        const doctorEmailToName = doctors.reduce((acc, profile) => {
+          if (profile?.email) {
+            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+            acc[profile.email] = fullName ? `Dr. ${fullName}` : profile.email;
+          }
+          return acc;
+        }, {});
+
+        const patientLookup = {};
+        const doctorLookup = {};
+
+        users.forEach((user) => {
+          if (user?.role === 'PATIENT') {
+            patientLookup[user.id] = patientEmailToName[user.email] || user.email || `Patient #${user.id}`;
+          }
+          if (user?.role === 'DOCTOR') {
+            doctorLookup[user.id] = doctorEmailToName[user.email] || user.email || `Doctor #${user.id}`;
+          }
+        });
+
+        setPatientNameById(patientLookup);
+        setDoctorNameById(doctorLookup);
+        setTransactions(ledgerData);
       }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
@@ -52,19 +95,63 @@ const AdminTransactionMonitor = () => {
     loadDashboardData();
   }, [loadDashboardData, token, activeTab]);;
 
-  // Search and filter transactions
+  // ==================== GLOBAL TRANSACTION LEDGER LOGIC: HELPERS ====================
+  const mapLedgerStatus = (paymentStatus) => {
+    if (paymentStatus === 'COMPLETED') return 'SUCCESS';
+    return paymentStatus || 'UNKNOWN';
+  };
+
+  const getTransactionDate = (tx) => {
+    return tx.completedAt || tx.updatedAt || tx.createdAt;
+  };
+
+  const isWithinDateRange = (dateValue, range) => {
+    if (!dateValue || range === 'ALL_TIME') return true;
+    const txDate = new Date(dateValue);
+    if (Number.isNaN(txDate.getTime())) return false;
+
+    const now = new Date();
+    const daysMap = {
+      LAST_7_DAYS: 7,
+      LAST_30_DAYS: 30,
+      LAST_90_DAYS: 90,
+    };
+    const selectedDays = daysMap[range];
+    if (!selectedDays) return true;
+
+    const threshold = new Date(now);
+    threshold.setDate(now.getDate() - selectedDays);
+    return txDate >= threshold;
+  };
+
+  const getStatusBadgeClass = (status) => {
+    if (status === 'SUCCESS') return 'bg-emerald-50 text-emerald-700';
+    if (status === 'PENDING') return 'bg-amber-50 text-amber-700';
+    if (status === 'REFUNDED') return 'bg-slate-100 text-slate-700';
+    if (status === 'FAILED') return 'bg-rose-50 text-rose-700';
+    return 'bg-gray-100 text-gray-700';
+  };
+
+  // ==================== GLOBAL TRANSACTION LEDGER LOGIC: FILTERING ====================
   useEffect(() => {
     const filtered = transactions.filter((tx) => {
-      const query = searchQuery.toLowerCase();
-      return (
-        tx.id?.toString().includes(query) ||
-        tx.appointmentId?.toString().includes(query) ||
-        tx.doctorId?.toString().includes(query) ||
-        tx.patientId?.toString().includes(query)
-      );
+      const ledgerStatus = mapLedgerStatus(tx.paymentStatus);
+      const query = searchQuery.trim().toLowerCase();
+
+      const matchesSearch =
+        query.length === 0 ||
+        tx.id?.toString().toLowerCase().includes(query) ||
+        tx.transactionReference?.toLowerCase().includes(query) ||
+        tx.stripePaymentIntentId?.toLowerCase().includes(query);
+
+      const matchesStatus = statusFilter === 'ALL' || ledgerStatus === statusFilter;
+      const matchesDateRange = isWithinDateRange(getTransactionDate(tx), dateRangeFilter);
+
+      return matchesSearch && matchesStatus && matchesDateRange;
     });
+
     setFilteredTransactions(filtered);
-  }, [searchQuery, transactions]);
+  }, [searchQuery, statusFilter, dateRangeFilter, transactions]);
 
   const formatCurrency = (amount) => {
     if (!amount) return 'Rs. 0.00';
@@ -194,16 +281,41 @@ const AdminTransactionMonitor = () => {
     return (
       <div className="space-y-4">
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-6">
-          {/* Search Bar */}
-          <div className="flex items-center gap-2 mb-6">
-            <Search className="text-gray-400" size={20} />
-            <input
-              type="text"
-              placeholder="Search by ID, appointment, doctor, or patient..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outlineone focus:ring-2 focus:ring-indigo-500"
-            />
+          {/* ==================== GLOBAL TRANSACTION LEDGER LOGIC: FILTER CONTROLS ==================== */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            <div className="flex items-center gap-2">
+              <Search className="text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Search transaction ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="SUCCESS">SUCCESS</option>
+              <option value="PENDING">PENDING</option>
+              <option value="REFUNDED">REFUNDED</option>
+              <option value="FAILED">FAILED</option>
+            </select>
+
+            <select
+              value={dateRangeFilter}
+              onChange={(e) => setDateRangeFilter(e.target.value)}
+              className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              <option value="LAST_30_DAYS">Last 30 Days</option>
+              <option value="LAST_7_DAYS">Last 7 Days</option>
+              <option value="LAST_90_DAYS">Last 90 Days</option>
+              <option value="ALL_TIME">All Time</option>
+            </select>
           </div>
 
           {isLoading ? (
@@ -218,7 +330,16 @@ const AdminTransactionMonitor = () => {
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Transaction ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Patient Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Doctor Name
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Gross Amount
@@ -227,20 +348,21 @@ const AdminTransactionMonitor = () => {
                       Platform Fee (15%)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                      Doctor Earnings (85%)
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                      Doctor ID
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
-                      Date
+                      Status
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredTransactions.map((tx) => (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-sm text-gray-600">{formatDate(getTransactionDate(tx))}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900">#{tx.id}</td>
+                      <td className="px-4 py-3 font-medium text-gray-700">
+                        {patientNameById[tx.patientId] || `Patient #${tx.patientId}`}
+                      </td>
+                      <td className="px-4 py-3 font-medium text-gray-700">
+                        {doctorNameById[tx.doctorId] || `Doctor #${tx.doctorId}`}
+                      </td>
                       <td className="px-4 py-3">
                         <span className="px-3 py-1 bg-green-50 text-green-700 rounded-lg font-semibold text-sm">
                           {formatCurrency(tx.amount)}
@@ -252,12 +374,10 @@ const AdminTransactionMonitor = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span className="px-3 py-1 bg-orange-50 text-orange-700 rounded-lg font-semibold text-sm">
-                          {formatCurrency(tx.doctorEarnings)}
+                        <span className={`px-3 py-1 rounded-lg font-semibold text-sm ${getStatusBadgeClass(mapLedgerStatus(tx.paymentStatus))}`}>
+                          {mapLedgerStatus(tx.paymentStatus)}
                         </span>
                       </td>
-                      <td className="px-4 py-3 font-medium text-gray-700">Dr-{tx.doctorId}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{formatDate(tx.completedAt)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,7 +413,10 @@ const AdminTransactionMonitor = () => {
               key={tab.id}
               onClick={() => {
                 setActiveTab(tab.id);
+                // ==================== GLOBAL TRANSACTION LEDGER LOGIC: FILTER RESET ====================
                 setSearchQuery('');
+                setStatusFilter('ALL');
+                setDateRangeFilter('LAST_30_DAYS');
               }}
               className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
                 activeTab === tab.id

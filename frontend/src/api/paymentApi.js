@@ -122,6 +122,24 @@ export const getAllCompletedTransactions = async (token) => {
 };
 
 /**
+ * Get global transaction ledger (all statuses and money movements)
+ */
+export const getGlobalTransactionLedger = async (token) => {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/admin/transactions/ledger`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching global transaction ledger:', error);
+    throw error;
+  }
+};
+
+/**
  * Get all transactions for a specific doctor
  */
 export const getDoctorTransactions = async (token, doctorId) => {

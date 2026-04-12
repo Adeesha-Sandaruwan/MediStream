@@ -44,5 +44,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     // Find payments by status ordered by completion date (for admin dashboard)
     List<Payment> findByPaymentStatusOrderByCompletedAtDesc(PaymentStatus paymentStatus);
+
+    // Global ledger list ordered by latest created payment
+    List<Payment> findAllByOrderByCreatedAtDesc();
 }
 
