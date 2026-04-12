@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X, Pill } from 'lucide-react';
+import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X, Pill, Eye, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments, getPatientReportsByEmailFallback } from '../api/doctorApi';
-import { downloadReportSecurely } from '../api/patientApi';
+import { downloadReportSecurely, fetchReportBlobSecurely } from '../api/patientApi';
 
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
@@ -26,6 +26,16 @@ export default function DoctorAppointments() {
   const [reportsError, setReportsError] = useState('');
   const [reportRows, setReportRows] = useState([]);
   const [downloadingFileName, setDownloadingFileName] = useState('');
+  const [previewingFileName, setPreviewingFileName] = useState('');
+  const [reportPreview, setReportPreview] = useState(null);
+
+  useEffect(() => {
+    return () => {
+      if (reportPreview?.url) {
+        window.URL.revokeObjectURL(reportPreview.url);
+      }
+    };
+  }, [reportPreview]);
 
   const toDatetimeLocalValue = (input) => {
     const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
@@ -213,6 +223,41 @@ export default function DoctorAppointments() {
       setReportsError(err.message || 'Failed to download report');
     } finally {
       setDownloadingFileName('');
+    }
+  };
+
+  const closeReportPreview = () => {
+    if (reportPreview?.url) {
+      window.URL.revokeObjectURL(reportPreview.url);
+    }
+    setReportPreview(null);
+  };
+
+  const handlePreviewReport = async (row) => {
+    const fileName = row?.storedFileName || row?.stored_file_name;
+    const originalName = row?.originalFileName || row?.original_file_name || fileName;
+    if (!fileName) {
+      setReportsError('Selected report does not include a previewable file name');
+      return;
+    }
+    setPreviewingFileName(fileName);
+    setReportsError('');
+    try {
+      const blob = await fetchReportBlobSecurely(token, fileName);
+      const previewUrl = window.URL.createObjectURL(blob);
+      if (reportPreview?.url) {
+        window.URL.revokeObjectURL(reportPreview.url);
+      }
+      setReportPreview({
+        fileName,
+        originalName,
+        url: previewUrl,
+        mimeType: blob.type || 'application/octet-stream',
+      });
+    } catch (err) {
+      setReportsError(err.message || 'Failed to preview report');
+    } finally {
+      setPreviewingFileName('');
     }
   };
 
@@ -519,6 +564,7 @@ export default function DoctorAppointments() {
               </div>
               <button
                 onClick={() => {
+                  closeReportPreview();
                   setReportsModal(null);
                   setReportRows([]);
                   setReportsError('');
@@ -555,19 +601,81 @@ export default function DoctorAppointments() {
                               {uploadedAt ? new Date(uploadedAt).toLocaleString() : 'Upload time unavailable'}
                             </p>
                           </div>
-                          <button
-                            type="button"
-                            disabled={!storedFileName || downloadingFileName === storedFileName}
-                            onClick={() => handleDownloadReport(row)}
-                            className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
-                          >
-                            {downloadingFileName === storedFileName ? 'Downloading...' : 'Download'}
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={!storedFileName || previewingFileName === storedFileName}
+                              onClick={() => handlePreviewReport(row)}
+                              className="inline-flex items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100 disabled:bg-cyan-50 disabled:text-cyan-300"
+                            >
+                              <Eye className="mr-1.5" size={15} />
+                              {previewingFileName === storedFileName ? 'Opening...' : 'View'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!storedFileName || downloadingFileName === storedFileName}
+                              onClick={() => handleDownloadReport(row)}
+                              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                            >
+                              <Download className="mr-1.5" size={15} />
+                              {downloadingFileName === storedFileName ? 'Downloading...' : 'Download'}
+                            </button>
+                          </div>
                         </div>
                       </li>
                     );
                   })}
                 </ul>
+              )}
+
+              {reportPreview && (
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Previewing {reportPreview.originalName}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{reportPreview.mimeType || 'Unknown file type'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={reportPreview.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"
+                      >
+                        <ExternalLink className="mr-1.5" size={15} /> Open in New Tab
+                      </a>
+                      <button
+                        type="button"
+                        onClick={closeReportPreview}
+                        className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        Close Preview
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                    {reportPreview.mimeType.startsWith('image/') ? (
+                      <div className="max-h-[60vh] overflow-auto bg-gray-50 p-4">
+                        <img src={reportPreview.url} alt={reportPreview.originalName} className="mx-auto max-h-[55vh] rounded-xl object-contain shadow-sm" />
+                      </div>
+                    ) : reportPreview.mimeType === 'application/pdf' ? (
+                      <iframe title={reportPreview.originalName} src={reportPreview.url} className="h-[60vh] w-full" />
+                    ) : (
+                      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-6 py-10 text-center text-sm text-gray-600">
+                        <p>Inline preview is not supported for this file type.</p>
+                        <a
+                          href={reportPreview.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-700"
+                        >
+                          <ExternalLink className="mr-1.5" size={15} /> Open File
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>

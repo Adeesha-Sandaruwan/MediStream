@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Save, Video, UserRound, BriefcaseMedical, BadgeCheck } from 'lucide-react';
+import { Save, Video, UserRound, BriefcaseMedical, BadgeCheck, Trash2, Upload, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getDoctorProfile, updateDoctorProfile } from '../api/doctorApi';
 
@@ -109,6 +109,12 @@ export default function DoctorProfile() {
     reader.readAsDataURL(file);
   };
 
+  const handleRemoveSignatureImage = () => {
+    setProfile((prev) => ({ ...prev, doctorSignatureImage: '' }));
+    setSuccess('Digital signature removed. Save profile to apply the change.');
+    setError('');
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-10">
@@ -188,14 +194,47 @@ export default function DoctorProfile() {
             <input className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none" placeholder="Consultation fee" value={profile.consultationFee} onChange={(e) => setProfile({ ...profile, consultationFee: e.target.value })} />
             <input className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none md:col-span-2" placeholder="Hospital affiliation" value={profile.hospitalAffiliation} onChange={(e) => setProfile({ ...profile, hospitalAffiliation: e.target.value })} />
             <textarea className="px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none md:col-span-2" rows="4" placeholder="Professional bio" value={profile.bio} onChange={(e) => setProfile({ ...profile, bio: e.target.value })} />
-            <div className="md:col-span-2 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
-              <p className="text-sm font-semibold text-indigo-800 mb-2">Digital Signature Image (For Prescriptions)</p>
-              <input type="file" accept="image/*" onChange={handleSignatureImageUpload} className="block w-full text-sm text-gray-700" />
-              {profile.doctorSignatureImage && (
-                <div className="mt-3 bg-white border border-indigo-100 rounded-lg p-2 w-fit">
-                  <img src={profile.doctorSignatureImage} alt="Doctor signature preview" className="h-16 object-contain" />
+            <div className="md:col-span-2 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-cyan-50 p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-indigo-900 mb-1">Digital Signature Image</p>
+                  <p className="text-sm text-indigo-700">Used automatically for prescriptions. Upload a clean signature image on a plain background.</p>
                 </div>
-              )}
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/80 border border-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  <ShieldCheck size={14} /> Prescription Ready
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+                <label className="flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-300 bg-white/80 px-4 py-5 text-center transition hover:border-indigo-400 hover:bg-white">
+                  <Upload size={22} className="text-indigo-600" />
+                  <span className="mt-2 text-sm font-semibold text-gray-900">Upload signature image</span>
+                  <span className="mt-1 text-xs text-gray-500">PNG or JPG, landscape works best</span>
+                  <input type="file" accept="image/*" onChange={handleSignatureImageUpload} className="hidden" />
+                </label>
+
+                <div className="rounded-2xl border border-indigo-100 bg-white p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-indigo-500">Preview</p>
+                  {profile.doctorSignatureImage ? (
+                    <>
+                      <div className="mt-3 flex min-h-[90px] items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50/50 p-3">
+                        <img src={profile.doctorSignatureImage} alt="Doctor signature preview" className="max-h-16 object-contain" />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveSignatureImage}
+                        className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+                      >
+                        <Trash2 className="mr-2" size={15} /> Remove Signature
+                      </button>
+                    </>
+                  ) : (
+                    <div className="mt-3 flex min-h-[90px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50 px-3 text-sm text-gray-500">
+                      No signature image uploaded
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="md:col-span-2 pt-1">
               <button type="submit" className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl shadow-sm transition-colors">
