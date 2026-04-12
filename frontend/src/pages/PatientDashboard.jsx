@@ -69,6 +69,15 @@ const PatientDashboard = () => {
             iconWrap: 'bg-teal-100 text-teal-700',
             button: 'bg-teal-600 hover:bg-teal-700',
         },
+        {
+            title: 'AI Symptom Checker',
+            description: 'Describe your symptoms and get preliminary guidance with specialist recommendations.',
+            action: 'Start Symptom Check',
+            to: '/patient-symptom-checker',
+            icon: Sparkles,
+            iconWrap: 'bg-orange-100 text-orange-700',
+            button: 'bg-orange-600 hover:bg-orange-700',
+        },
     ];
 
     return (

@@ -16,6 +16,7 @@ import DoctorPrescriptions from './pages/DoctorPrescriptions';
 import PatientDoctorSearch from './pages/PatientDoctorSearch';
 import PatientPrescriptions from './pages/PatientPrescriptions';
 import PatientAppointments from './pages/PatientAppointments';
+import PatientSymptomChecker from './pages/PatientSymptomChecker';
 import { Activity, LogOut } from 'lucide-react';
 
 const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
@@ -42,6 +43,7 @@ const Navbar = () => {
             { to: '/patient-dashboard', label: 'Dashboard' },
             { to: '/patient-appointments', label: 'My Appointments' },
             { to: '/patient-doctors', label: 'Find Doctors' },
+            { to: '/patient-symptom-checker', label: 'Symptom Checker' },
             { to: '/patient-prescriptions', label: 'Prescriptions' },
             { to: '/profile', label: 'Profile' },
             { to: '/reports', label: 'Reports' },
@@ -155,7 +157,7 @@ export default function App() {
 
                 <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
                 <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
-\                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
+                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
                 <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 
@@ -166,6 +168,8 @@ export default function App() {
                 <Route path="/patient-appointments" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientAppointments /></ProtectedRoute>} />
 
                 <Route path="/patient-prescriptions" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientPrescriptions /></ProtectedRoute>} />
+
+                <Route path="/patient-symptom-checker" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientSymptomChecker /></ProtectedRoute>} />
                 
                 <Route path="/telemedicine" element={<ProtectedRoute allowedRoles={['PATIENT', 'DOCTOR']} requireVerified={true}><Telemedicine /></ProtectedRoute>} />
 
