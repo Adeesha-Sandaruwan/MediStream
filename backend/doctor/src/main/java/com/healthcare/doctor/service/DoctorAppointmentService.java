@@ -327,7 +327,7 @@ public class DoctorAppointmentService {
                 }
 
                 String mappedStatus = mapAppointmentStatus(readString(appt.get("status")));
-                if (mappedStatus != null) {
+                if (mappedStatus != null && shouldApplySyncedStatus(request.getStatus(), mappedStatus)) {
                     request.setStatus(mappedStatus);
                 }
 
@@ -379,6 +379,29 @@ public class DoctorAppointmentService {
                     appointmentStatus.trim().toUpperCase();
             default -> null;
         };
+    }
+
+    private boolean shouldApplySyncedStatus(String currentStatusRaw, String syncedStatusRaw) {
+        if (syncedStatusRaw == null || syncedStatusRaw.isBlank()) {
+            return false;
+        }
+        if (currentStatusRaw == null || currentStatusRaw.isBlank()) {
+            return true;
+        }
+
+        String currentStatus = currentStatusRaw.trim().toUpperCase();
+        String syncedStatus = syncedStatusRaw.trim().toUpperCase();
+
+        // Keep doctor-side decisions stable if upstream still temporarily reports PENDING.
+        if ("PENDING".equals(syncedStatus)
+                && ("ACCEPTED".equals(currentStatus)
+                || "APPROVED".equals(currentStatus)
+                || "REJECTED".equals(currentStatus)
+                || "COMPLETED".equals(currentStatus))) {
+            return false;
+        }
+
+        return true;
     }
 
     private Long readLong(Object rawValue) {

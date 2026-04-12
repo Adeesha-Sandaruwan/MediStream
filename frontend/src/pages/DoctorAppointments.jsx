@@ -29,6 +29,35 @@ export default function DoctorAppointments() {
   const [previewingFileName, setPreviewingFileName] = useState('');
   const [reportPreview, setReportPreview] = useState(null);
 
+  const normalizeAppointments = (rows) => {
+    const byAppointmentId = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const key = String(row?.appointmentId ?? row?.id ?? '');
+      if (!key) return;
+      const existing = byAppointmentId.get(key);
+      if (!existing) {
+        byAppointmentId.set(key, row);
+        return;
+      }
+
+      const existingTs = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      const currentTs = row?.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+      const existingStatus = String(existing?.status || '').toUpperCase();
+      const currentStatus = String(row?.status || '').toUpperCase();
+
+      // Prefer a non-pending status when duplicates exist; otherwise keep the latest update.
+      const shouldReplace =
+        (existingStatus === 'PENDING' && currentStatus !== 'PENDING') ||
+        (currentTs >= existingTs && !(existingStatus !== 'PENDING' && currentStatus === 'PENDING'));
+
+      if (shouldReplace) {
+        byAppointmentId.set(key, { ...existing, ...row });
+      }
+    });
+
+    return Array.from(byAppointmentId.values());
+  };
+
   useEffect(() => {
     return () => {
       if (reportPreview?.url) {
@@ -51,7 +80,8 @@ export default function DoctorAppointments() {
   const loadAppointments = useCallback(async () => {
     setError('');
     try {
-      const baseAppointments = await getDoctorAppointments(token);
+      const baseAppointmentsRaw = await getDoctorAppointments(token);
+      const baseAppointments = normalizeAppointments(baseAppointmentsRaw);
       // Render the list immediately to avoid waiting on N extra detail requests.
       setAppointments(baseAppointments);
       setIsLoading(false);
@@ -95,6 +125,14 @@ export default function DoctorAppointments() {
     }
   }, [loadAppointments, token]);
 
+  useEffect(() => {
+    if (!token) return undefined;
+    const intervalId = window.setInterval(() => {
+      loadAppointments();
+    }, 12000);
+    return () => window.clearInterval(intervalId);
+  }, [token, loadAppointments]);
+
   const openDecisionModal = (appointmentId, status) => {
     setDoctorNotes('');
     const appointment = appointments.find((a) => a.appointmentId === appointmentId || a.id === appointmentId);
@@ -129,7 +167,7 @@ export default function DoctorAppointments() {
 
       // Optimistically move the appointment to its destination section immediately.
       setAppointments((prev) => prev.map((item) => {
-        if (item.appointmentId !== appointmentId) return item;
+        if (String(item.appointmentId) !== String(appointmentId)) return item;
         return {
           ...item,
           status,
@@ -140,6 +178,10 @@ export default function DoctorAppointments() {
 
       await decideAppointment(token, appointmentId, payload);
       await loadAppointments();
+      // Follow-up refresh to capture eventual backend sync from dependent services.
+      window.setTimeout(() => {
+        loadAppointments();
+      }, 1200);
     } catch (err) {
       setAppointments(previousAppointments);
       setError(err.message || 'Failed to update appointment decision');

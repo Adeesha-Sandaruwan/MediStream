@@ -79,6 +79,9 @@ export default function DoctorAvailability() {
 
   const handleDeleteAvailability = async (slotId) => {
     setError('');
+    if (!window.confirm('Delete this availability slot? This action cannot be undone.')) {
+      return;
+    }
     try {
       await deleteAvailabilitySlot(token, slotId);
       await loadAvailability();
