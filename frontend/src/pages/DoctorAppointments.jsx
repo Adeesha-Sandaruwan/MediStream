@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X } from 'lucide-react';
+import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X, Pill } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments, getPatientReportsByEmailFallback } from '../api/doctorApi';
 import { downloadReportSecurely } from '../api/patientApi';
@@ -167,6 +167,14 @@ export default function DoctorAppointments() {
     navigate(`/telemedicine?appointmentId=${item.appointmentId}`);
   };
 
+  const handleIssuePrescriptionForAppointment = (item) => {
+    const params = new URLSearchParams();
+    params.set('appointmentId', String(item.appointmentId));
+    if (item?.patientEmail) params.set('patientEmail', item.patientEmail);
+    if (item?.patientSymptoms) params.set('diagnosis', item.patientSymptoms);
+    navigate(`/doctor-prescriptions?${params.toString()}`);
+  };
+
   const handleOpenReports = async (item) => {
     setReportsModal({ appointmentId: item.appointmentId, patientEmail: item.patientEmail });
     setLoadingReports(true);
@@ -314,12 +322,29 @@ export default function DoctorAppointments() {
             <FileText className="mr-1" size={16} /> View Reports
           </button>
           <button
+            onClick={() => handleIssuePrescriptionForAppointment(item)}
+            className="inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Pill className="mr-1" size={16} /> Issue Prescription
+          </button>
+          <button
             onClick={() => handleCompleteAppointment(item.appointmentId)}
             disabled={completingId === item.appointmentId}
             className="inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer"
           >
             <ClipboardCheck className="mr-1" size={16} />
             {completingId === item.appointmentId ? 'Completing…' : 'Mark as Completed'}
+          </button>
+        </div>
+      )}
+
+      {item.status === 'COMPLETED' && (
+        <div className="flex flex-wrap gap-2 mt-4 w-full">
+          <button
+            onClick={() => handleIssuePrescriptionForAppointment(item)}
+            className="inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Pill className="mr-1" size={16} /> Issue Prescription
           </button>
         </div>
       )}
