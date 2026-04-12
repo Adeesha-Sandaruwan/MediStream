@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ClipboardPlus, Video, Pill, CalendarDays, UserRound, Download } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
@@ -11,17 +11,22 @@ const initialPrescriptionState = {
   diagnosis: '',
   medications: '',
   advice: '',
-  doctorSignature: '',
   followUpDate: '',
 };
 
 export default function DoctorPrescriptions() {
   const { token } = useAuth();
+  const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [prescriptionForm, setPrescriptionForm] = useState(initialPrescriptionState);
   const [prescriptions, setPrescriptions] = useState([]);
+
+  const linkedAppointmentId = searchParams.get('appointmentId') || '';
+  const linkedPatientEmail = searchParams.get('patientEmail') || '';
+  const linkedDiagnosis = searchParams.get('diagnosis') || '';
+  const isLinkedAppointment = Boolean(linkedAppointmentId);
 
   const loadPrescriptions = useCallback(async () => {
     setError('');
@@ -40,14 +45,22 @@ export default function DoctorPrescriptions() {
     }
   }, [loadPrescriptions, token]);
 
+  useEffect(() => {
+    if (!linkedAppointmentId && !linkedPatientEmail && !linkedDiagnosis) {
+      return;
+    }
+    setPrescriptionForm((prev) => ({
+      ...prev,
+      appointmentId: linkedAppointmentId || prev.appointmentId,
+      patientEmail: linkedPatientEmail || prev.patientEmail,
+      diagnosis: linkedDiagnosis || prev.diagnosis,
+    }));
+  }, [linkedAppointmentId, linkedPatientEmail, linkedDiagnosis]);
+
   const handleIssuePrescription = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    if (!prescriptionForm.doctorSignature && !prescriptionForm.doctorSignatureImage) {
-      setError('Add either typed digital signature or signature image.');
-      return;
-    }
     try {
       const created = await issuePrescription(token, {
         ...prescriptionForm,
@@ -123,18 +136,18 @@ export default function DoctorPrescriptions() {
     doc.setTextColor(17, 24, 39);
     doc.text('Digital Signature', 14, y);
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(11);
-    doc.text(item.doctorSignature || item.doctorEmail || 'N/A', 14, y + 8);
-
     if (item.doctorSignatureImage) {
       try {
-        doc.addImage(item.doctorSignatureImage, 'PNG', pageWidth - 72, y - 10, 56, 22);
+        doc.addImage(item.doctorSignatureImage, 'PNG', 14, y + 3, 56, 22);
       } catch {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
-        doc.text('Signature image unavailable', pageWidth - 70, y + 4);
+        doc.text('Signature image unavailable', 14, y + 10);
       }
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('No signature image on file', 14, y + 10);
     }
 
     const safePatient = (item.patientEmail || 'patient').replace(/[^a-zA-Z0-9]/g, '_');
@@ -175,19 +188,30 @@ export default function DoctorPrescriptions() {
 
       {error && <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error}</div>}
       {success && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-4 rounded-xl">{success}</div>}
+      {linkedAppointmentId && (
+        <div className="bg-violet-50 border border-violet-200 text-violet-800 p-4 rounded-xl text-sm">
+          Linked appointment detected. Prescription form is prefilled for Appointment #{linkedAppointmentId}.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 xl:col-span-1 h-fit">
           <h2 className="text-lg font-bold text-gray-900 mb-4">Issue New Prescription</h2>
           <form onSubmit={handleIssuePrescription} className="space-y-3">
             <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Patient email" value={prescriptionForm.patientEmail} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientEmail: e.target.value })} required />
-            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Appointment ID (optional)" value={prescriptionForm.appointmentId} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, appointmentId: e.target.value })} />
+            <input
+              className={`w-full px-3 py-2.5 border border-gray-300 rounded-xl outline-none ${isLinkedAppointment ? 'bg-gray-100 text-gray-600 cursor-not-allowed' : 'bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200'}`}
+              placeholder="Appointment ID (optional)"
+              value={prescriptionForm.appointmentId}
+              onChange={(e) => setPrescriptionForm({ ...prescriptionForm, appointmentId: e.target.value })}
+              readOnly={isLinkedAppointment}
+              title={isLinkedAppointment ? 'Linked from appointment and locked' : 'Optional'}
+            />
             <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Diagnosis" value={prescriptionForm.diagnosis} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, diagnosis: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Medications" value={prescriptionForm.medications} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, medications: e.target.value })} required />
             <textarea className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" rows="3" placeholder="Advice" value={prescriptionForm.advice} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, advice: e.target.value })} />
-            <input className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" placeholder="Typed signature (e.g., Dr. John Doe, MBBS)" value={prescriptionForm.doctorSignature} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorSignature: e.target.value })} />
             <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 text-sm text-violet-800">
-              Signature image is managed from Doctor Profile and will be added automatically to issued prescriptions and PDF.
+              Signature image is mandatory and is pulled from Doctor Profile when issuing prescriptions.
             </div>
             <input type="date" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl bg-gray-50 focus:bg-white focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none" value={prescriptionForm.followUpDate} onChange={(e) => setPrescriptionForm({ ...prescriptionForm, followUpDate: e.target.value })} />
             <button type="submit" className="w-full inline-flex items-center justify-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-colors">
@@ -216,11 +240,6 @@ export default function DoctorPrescriptions() {
                   <p className="font-semibold text-gray-900 flex items-start">
                     <Pill className="mr-2 mt-0.5 text-violet-600 shrink-0" size={16} />
                     {item.diagnosis}
-                  </p>
-
-                  <p className="mt-3 text-sm text-gray-700">
-                    <span className="font-semibold text-gray-900">Digital Signature: </span>
-                    <span className="italic">{item.doctorSignature || item.doctorEmail}</span>
                   </p>
 
                   {item.doctorSignatureImage && (
