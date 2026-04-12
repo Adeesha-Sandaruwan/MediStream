@@ -62,17 +62,6 @@ export default function DoctorDashboard() {
       locked: !isApproved,
       cardAccent: 'border-violet-200',
     },
-    {
-      title: 'Earnings & Wallet',
-      description: 'View your earnings from appointments, manage wallet balance, and request bank withdrawals.',
-      to: '/doctor-wallet',
-      action: 'Manage Earnings',
-      icon: Wallet,
-      iconClasses: 'bg-emerald-100 text-emerald-700',
-      buttonClasses: 'bg-emerald-600 hover:bg-emerald-700',
-      locked: false,
-      cardAccent: 'border-emerald-200',
-    },
   ];
 
   return (

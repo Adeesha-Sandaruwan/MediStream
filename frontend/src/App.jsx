@@ -16,7 +16,6 @@ import DoctorPrescriptions from './pages/DoctorPrescriptions';
 import PatientDoctorSearch from './pages/PatientDoctorSearch';
 import PatientPrescriptions from './pages/PatientPrescriptions';
 import PatientAppointments from './pages/PatientAppointments';
-import DoctorWalletView from './components/DoctorWalletView';
 import { Activity, LogOut } from 'lucide-react';
 
 const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
@@ -156,8 +155,7 @@ export default function App() {
 
                 <Route path="/doctor-dashboard" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorDashboard /></ProtectedRoute>} />
                 <Route path="/doctor-profile" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorProfile /></ProtectedRoute>} />
-                <Route path="/doctor-wallet" element={<ProtectedRoute allowedRoles={['DOCTOR']}><DoctorWalletView /></ProtectedRoute>} />
-                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
+\                <Route path="/doctor-availability" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAvailability /></ProtectedRoute>} />
                 <Route path="/doctor-appointments" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorAppointments /></ProtectedRoute>} />
                 <Route path="/doctor-prescriptions" element={<ProtectedRoute allowedRoles={['DOCTOR']} requireVerified={true}><DoctorPrescriptions /></ProtectedRoute>} />
 
