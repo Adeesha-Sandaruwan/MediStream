@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Loader2,
-  Download,
-  Filter,
   Search,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -19,7 +17,6 @@ import {
   getTransactionMetrics,
   markDoctorPayoutCompleted,
   batchMarkDoctorPayoutsCompleted,
-  getDoctorTransactions,
 } from '../api/paymentApi';
 
 const AdminTransactionMonitor = () => {
@@ -42,15 +39,7 @@ const AdminTransactionMonitor = () => {
   const [filteredPayouts, setFilteredPayouts] = useState([]);
   const [processingPayouts, setProcessingPayouts] = useState(new Set());
 
-  // Doctor transactions tab
-  const [doctorTransactions, setDoctorTransactions] = useState([]);
-  const [selectedDoctorId, setSelectedDoctorId] = useState(null);
-
-  useEffect(() => {
-    loadDashboardData();
-  }, [token, activeTab]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
@@ -72,7 +61,11 @@ const AdminTransactionMonitor = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token, activeTab]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData, token, activeTab]);;
 
   // Search and filter transactions
   useEffect(() => {
@@ -212,7 +205,7 @@ const AdminTransactionMonitor = () => {
           </div>
 
           {/* Platform Revenue */}
-          <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-shadow">
+          <div className="bg-linear-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-indigo-200 text-sm font-semibold uppercase tracking-wide">Platform Revenue</p>
@@ -226,7 +219,7 @@ const AdminTransactionMonitor = () => {
           </div>
 
           {/* Pending Payouts */}
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-shadow">
+          <div className="bg-linear-to-br from-amber-500 to-orange-600 rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-amber-100 text-sm font-semibold uppercase tracking-wide">Pending Payouts</p>
@@ -479,7 +472,7 @@ const AdminTransactionMonitor = () => {
     <div className="space-y-6">
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+          <AlertCircle className="text-red-600 shrink-0 mt-0.5" size={20} />
           <div>
             <p className="font-semibold text-red-900">Error</p>
             <p className="text-red-700 text-sm">{error}</p>
