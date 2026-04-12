@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { completeAppointment, decideAppointment, getDoctorAppointments } from '../api/doctorApi';
+import { completeAppointment, decideAppointment, getAppointmentDetailsById, getDoctorAppointments } from '../api/doctorApi';
 
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
@@ -34,7 +34,26 @@ export default function DoctorAppointments() {
   const loadAppointments = useCallback(async () => {
     setError('');
     try {
-      setAppointments(await getDoctorAppointments(token));
+      const baseAppointments = await getDoctorAppointments(token);
+      const enrichedAppointments = await Promise.all(
+        baseAppointments.map(async (item) => {
+          try {
+            const details = await getAppointmentDetailsById(token, item.appointmentId);
+            return {
+              ...item,
+              patientSymptoms: details?.reason || '',
+              patientDetails: details?.notes || '',
+            };
+          } catch {
+            return {
+              ...item,
+              patientSymptoms: '',
+              patientDetails: '',
+            };
+          }
+        }),
+      );
+      setAppointments(enrichedAppointments);
     } catch (err) {
       setError(err.message || 'Failed to fetch appointment requests');
     } finally {
@@ -160,10 +179,20 @@ export default function DoctorAppointments() {
               Scheduled: <span className="font-medium ml-1">{formatScheduledAt(item.scheduledAt)}</span>
             </p>
           )}
+          <p className="text-sm text-gray-600 flex items-start">
+            <FileText className="mr-2 mt-0.5 shrink-0" size={14} />
+            <span>Symptoms: <span className="font-medium">{item.patientSymptoms || 'Not provided'}</span></span>
+          </p>
+          {item.patientDetails && (
+            <p className="text-sm text-gray-600 flex items-start">
+              <FileText className="mr-2 mt-0.5 shrink-0" size={14} />
+              <span>Patient Details: <span className="font-medium">{item.patientDetails}</span></span>
+            </p>
+          )}
           {item.doctorNotes && (
             <p className="text-sm text-gray-600 flex items-start">
               <FileText className="mr-2 mt-0.5 shrink-0" size={14} />
-              <span>Notes: <span className="font-medium">{item.doctorNotes}</span></span>
+              <span>Doctor Notes: <span className="font-medium">{item.doctorNotes}</span></span>
             </p>
           )}
         </div>

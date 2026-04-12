@@ -1,4 +1,5 @@
 const API_BASE = import.meta.env.VITE_DOCTOR_API_URL || 'http://localhost:8084/api/doctors';
+const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 const buildHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
@@ -112,6 +113,15 @@ export const completeAppointment = async (token, appointmentId) => {
     headers: buildHeaders(token),
   });
   if (!response.ok) throw new Error(await parseError(response, 'Failed to complete appointment'));
+  return response.json();
+};
+
+export const getAppointmentDetailsById = async (token, appointmentId) => {
+  const response = await fetch(`${APPOINTMENT_API_BASE}/${appointmentId}`, {
+    method: 'GET',
+    headers: buildHeaders(token),
+  });
+  if (!response.ok) throw new Error(await parseError(response, 'Failed to fetch appointment details'));
   return response.json();
 };
 
