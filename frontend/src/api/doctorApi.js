@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_DOCTOR_API_URL || 'http://localhost:8084/api/doctors';
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
+const PATIENT_API_BASE = import.meta.env.VITE_PATIENT_API_URL || 'http://localhost:8082/api/patients';
 
 const buildHeaders = (token) => ({
   Authorization: `Bearer ${token}`,
@@ -130,6 +131,13 @@ export const getAppointmentPatientReports = async (token, appointmentId) => {
     method: 'GET',
     headers: buildHeaders(token),
   });
+  if (!response.ok) throw new Error(await parseError(response, 'Failed to fetch patient reports'));
+  return response.json();
+};
+
+export const getPatientReportsByEmailFallback = async (patientEmail) => {
+  const url = `${PATIENT_API_BASE}/reports/internal/by-email?patientEmail=${encodeURIComponent(patientEmail)}`;
+  const response = await fetch(url, { method: 'GET' });
   if (!response.ok) throw new Error(await parseError(response, 'Failed to fetch patient reports'));
   return response.json();
 };

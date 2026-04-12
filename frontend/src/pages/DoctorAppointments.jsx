@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments } from '../api/doctorApi';
+import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments, getPatientReportsByEmailFallback } from '../api/doctorApi';
 import { downloadReportSecurely } from '../api/patientApi';
 
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
@@ -42,25 +42,36 @@ export default function DoctorAppointments() {
     setError('');
     try {
       const baseAppointments = await getDoctorAppointments(token);
-      const enrichedAppointments = await Promise.all(
+      // Render the list immediately to avoid waiting on N extra detail requests.
+      setAppointments(baseAppointments);
+      setIsLoading(false);
+
+      void Promise.all(
         baseAppointments.map(async (item) => {
           try {
             const details = await getAppointmentDetailsById(token, item.appointmentId);
             return {
-              ...item,
+              appointmentId: item.appointmentId,
               patientSymptoms: details?.reason || '',
               patientDetails: details?.notes || '',
             };
           } catch {
             return {
-              ...item,
+              appointmentId: item.appointmentId,
               patientSymptoms: '',
               patientDetails: '',
             };
           }
         }),
-      );
-      setAppointments(enrichedAppointments);
+      ).then((enrichedRows) => {
+        const byAppointmentId = new Map(enrichedRows.map((row) => [row.appointmentId, row]));
+        setAppointments((prev) => prev.map((item) => {
+          const extra = byAppointmentId.get(item.appointmentId);
+          return extra
+            ? { ...item, patientSymptoms: extra.patientSymptoms, patientDetails: extra.patientDetails }
+            : item;
+        }));
+      });
     } catch (err) {
       setError(err.message || 'Failed to fetch appointment requests');
     } finally {
@@ -86,10 +97,12 @@ export default function DoctorAppointments() {
   const handleAppointmentDecision = async () => {
     if (!notesModal) return;
     const { appointmentId, status } = notesModal;
+    const previousAppointments = appointments;
     setError('');
     setNotesModal(null);
     try {
       const payload = { status, doctorNotes };
+      let optimisticScheduledAt = null;
       if (status === 'ACCEPTED') {
         const start = new Date(scheduledStartLocal);
         if (Number.isNaN(start.getTime())) {
@@ -101,10 +114,24 @@ export default function DoctorAppointments() {
         payload.scheduledStartAt = start.toISOString();
         payload.durationMinutes = Number(durationMinutes) || 60;
         payload.regenerateLink = regenerateLink;
+        optimisticScheduledAt = payload.scheduledStartAt;
       }
+
+      // Optimistically move the appointment to its destination section immediately.
+      setAppointments((prev) => prev.map((item) => {
+        if (item.appointmentId !== appointmentId) return item;
+        return {
+          ...item,
+          status,
+          doctorNotes: doctorNotes || item.doctorNotes,
+          ...(optimisticScheduledAt ? { scheduledAt: optimisticScheduledAt } : {}),
+        };
+      }));
+
       await decideAppointment(token, appointmentId, payload);
       await loadAppointments();
     } catch (err) {
+      setAppointments(previousAppointments);
       setError(err.message || 'Failed to update appointment decision');
     }
   };
@@ -149,7 +176,15 @@ export default function DoctorAppointments() {
       const rows = await getAppointmentPatientReports(token, item.appointmentId);
       setReportRows(Array.isArray(rows) ? rows : []);
     } catch (err) {
-      setReportsError(err.message || 'Failed to load reports');
+      try {
+        if (!item?.patientEmail) {
+          throw err;
+        }
+        const fallbackRows = await getPatientReportsByEmailFallback(item.patientEmail);
+        setReportRows(Array.isArray(fallbackRows) ? fallbackRows : []);
+      } catch {
+        setReportsError(err.message || 'Failed to load reports');
+      }
     } finally {
       setLoadingReports(false);
     }

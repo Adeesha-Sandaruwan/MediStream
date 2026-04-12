@@ -48,6 +48,9 @@ public class DoctorAppointmentService {
     @Value("${services.patient.url:http://localhost:8082}")
     private String patientServiceUrl;
 
+    @Value("${services.notification.url:http://localhost:8085}")
+    private String notificationServiceUrl;
+
     public DoctorAppointmentRequest createPendingRequest(String doctorEmail, DoctorAppointmentRequestDto dto) {
         DoctorAppointmentRequest request = doctorAppointmentRequestRepository
                 .findByAppointmentId(dto.getAppointmentId())
@@ -89,7 +92,16 @@ public class DoctorAppointmentService {
             request.setUpdatedAt(LocalDateTime.now());
         }
 
-        return doctorAppointmentRequestRepository.save(request);
+        DoctorAppointmentRequest saved = doctorAppointmentRequestRepository.save(request);
+
+        sendNotificationSafely(
+            dto.getDoctorEmail(),
+            "New Appointment Request",
+            "A new paid appointment request is ready for your review. " +
+                "Appointment ID: " + dto.getAppointmentId() + "."
+        );
+
+        return saved;
     }
 
     public List<DoctorAppointmentRequest> getMyRequests(String doctorEmail) {
@@ -124,6 +136,22 @@ public class DoctorAppointmentService {
         request.setStatus(status);
         request.setDoctorNotes(dto.getDoctorNotes());
         request.setUpdatedAt(LocalDateTime.now());
+
+        if ("ACCEPTED".equals(status)) {
+            sendNotificationSafely(
+                    request.getPatientEmail(),
+                    "Appointment Accepted",
+                    "Your appointment has been accepted by the doctor. " +
+                            "Appointment ID: " + appointmentId + "."
+            );
+        } else {
+            sendNotificationSafely(
+                    request.getPatientEmail(),
+                    "Appointment Rejected",
+                    "Your appointment was rejected by the doctor. " +
+                            "Appointment ID: " + appointmentId + "."
+            );
+        }
 
         return doctorAppointmentRequestRepository.save(request);
     }
@@ -405,22 +433,104 @@ public class DoctorAppointmentService {
         request.setStatus("COMPLETED");
         request.setUpdatedAt(LocalDateTime.now());
 
+        sendNotificationSafely(
+                request.getPatientEmail(),
+                "Appointment Completed",
+                "Your appointment has been marked as completed by the doctor. " +
+                        "Appointment ID: " + appointmentId + "."
+        );
+
         return doctorAppointmentRequestRepository.save(request);
+    }
+
+    private void sendNotificationSafely(String recipientEmail, String subject, String content) {
+        if (recipientEmail == null || recipientEmail.isBlank()) {
+            return;
+        }
+
+        String endpoint = notificationServiceUrl + "/api/notifications/send";
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("recipientEmail", recipientEmail);
+        payload.put("subject", subject);
+        payload.put("content", content);
+        payload.put("type", "APPOINTMENT_REMINDER");
+        payload.put("sendNow", true);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(payload, headers);
+
+        try {
+            restTemplate.postForEntity(endpoint, requestEntity, Map.class);
+        } catch (Exception ex) {
+            log.warn("Notification service call failed for recipient={}: {}", recipientEmail, ex.getMessage());
+        }
     }
 
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> getPatientReportsForAppointment(String doctorEmail, Long appointmentId) {
         DoctorAppointmentRequest request = doctorAppointmentRequestRepository.findByAppointmentId(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment request not found"));
+                .orElse(null);
 
-        if (!request.getDoctorEmail().equalsIgnoreCase(doctorEmail)) {
+        if (request != null && request.getDoctorEmail() != null
+                && !request.getDoctorEmail().equalsIgnoreCase(doctorEmail)) {
             throw new RuntimeException("You are not allowed to view reports for this appointment");
         }
 
-        String patientEmail = request.getPatientEmail();
-        if (patientEmail == null || patientEmail.isBlank()) {
-            throw new RuntimeException("Patient email is missing for this appointment");
+        Map<String, Object> appointmentPayload = null;
+        try {
+            appointmentPayload = fetchAppointmentById(appointmentId);
+        } catch (Exception ex) {
+            log.warn("Could not fetch appointment {} for report lookup: {}", appointmentId, ex.getMessage());
         }
+
+        boolean hasLocalDoctorOwnership = request != null
+            && request.getDoctorEmail() != null
+            && request.getDoctorEmail().equalsIgnoreCase(doctorEmail);
+
+        if (appointmentPayload != null && !hasLocalDoctorOwnership
+            && !isAppointmentOwnedByDoctor(appointmentPayload, doctorEmail)) {
+            throw new RuntimeException("You are not allowed to view reports for this appointment");
+        }
+
+        if (request == null && appointmentPayload == null) {
+            // Avoid failing the UI when dependent service is temporarily unavailable.
+            return List.of();
+        }
+
+        String patientEmail = request == null ? null : request.getPatientEmail();
+        if (patientEmail == null || patientEmail.isBlank()) {
+            patientEmail = extractPatientEmail(appointmentPayload == null ? Map.of() : appointmentPayload);
+        }
+        if (patientEmail == null || patientEmail.isBlank()) {
+            try {
+                patientEmail = resolvePatientEmailFromAppointmentService(appointmentId);
+            } catch (Exception ex) {
+                log.warn("Could not resolve patient email from appointment {}: {}", appointmentId, ex.getMessage());
+            }
+        }
+
+        if (patientEmail == null || patientEmail.isBlank()) {
+            return List.of();
+        }
+
+        if (request == null) {
+            request = DoctorAppointmentRequest.builder()
+                    .appointmentId(appointmentId)
+                    .doctorEmail(doctorEmail)
+                    .build();
+        }
+
+        request.setDoctorEmail(doctorEmail);
+        request.setPatientEmail(patientEmail);
+        if (appointmentPayload != null) {
+            String mappedStatus = mapAppointmentStatus(readString(appointmentPayload.get("status")));
+            if (mappedStatus != null) {
+                request.setStatus(mappedStatus);
+            }
+        }
+        request.setUpdatedAt(LocalDateTime.now());
+        doctorAppointmentRequestRepository.save(request);
 
         String endpoint = UriComponentsBuilder
                 .fromHttpUrl(patientServiceUrl + "/api/patients/reports/internal/by-email")
@@ -432,7 +542,84 @@ public class DoctorAppointmentService {
             List<Map<String, Object>> rows = response.getBody();
             return rows == null ? List.of() : rows;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load patient reports from patient service: " + e.getMessage(), e);
+            log.warn("Failed to load patient reports from patient service for {}: {}", patientEmail, e.getMessage());
+            return List.of();
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> fetchAppointmentById(Long appointmentId) {
+        String primaryUrl = appointmentServiceUrl + "/appointments/" + appointmentId;
+        try {
+            return restTemplate.getForObject(primaryUrl, Map.class);
+        } catch (Exception primaryEx) {
+            if (!appointmentServiceUrl.contains("/api/v1")) {
+                String fallbackUrl = appointmentServiceUrl + "/api/v1/appointments/" + appointmentId;
+                return restTemplate.getForObject(fallbackUrl, Map.class);
+            }
+            throw primaryEx;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private boolean isAppointmentOwnedByDoctor(Map<String, Object> appointmentPayload, String doctorEmail) {
+        if (appointmentPayload == null || doctorEmail == null || doctorEmail.isBlank()) {
+            return false;
+        }
+
+        Object doctorInfoRaw = appointmentPayload.get("doctorInfo");
+        if (doctorInfoRaw instanceof Map<?, ?> doctorInfoMap) {
+            String doctorInfoEmail = readString(((Map<String, Object>) doctorInfoMap).get("email"));
+            if (doctorInfoEmail != null && doctorInfoEmail.equalsIgnoreCase(doctorEmail)) {
+                return true;
+            }
+        }
+
+        Long appointmentDoctorId = readLong(appointmentPayload.get("doctorId"));
+        if (appointmentDoctorId != null) {
+            Optional<DoctorProfile> profileOpt = doctorProfileRepository.findByEmail(doctorEmail);
+            if (profileOpt.isPresent() && profileOpt.get().getId() != null) {
+                return appointmentDoctorId.equals(profileOpt.get().getId());
+            }
+        }
+
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String resolvePatientEmailFromAppointmentService(Long appointmentId) {
+        String primaryUrl = appointmentServiceUrl + "/appointments/" + appointmentId;
+        Map<String, Object> payload;
+
+        try {
+            payload = restTemplate.getForObject(primaryUrl, Map.class);
+        } catch (Exception primaryEx) {
+            if (!appointmentServiceUrl.contains("/api/v1")) {
+                String fallbackUrl = appointmentServiceUrl + "/api/v1/appointments/" + appointmentId;
+                payload = restTemplate.getForObject(fallbackUrl, Map.class);
+            } else {
+                throw primaryEx;
+            }
+        }
+
+        if (payload == null) {
+            return null;
+        }
+
+        Object patientInfoRaw = payload.get("patientInfo");
+        if (patientInfoRaw instanceof Map<?, ?> patientInfoMap) {
+            Object emailRaw = ((Map<String, Object>) patientInfoMap).get("email");
+            String email = readString(emailRaw);
+            if (email != null && !email.isBlank()) {
+                return email;
+            }
+        }
+
+        String direct = readString(payload.get("patientEmail"));
+        if (direct != null && !direct.isBlank()) {
+            return direct;
+        }
+
+        return null;
     }
 }
