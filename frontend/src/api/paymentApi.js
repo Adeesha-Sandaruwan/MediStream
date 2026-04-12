@@ -122,24 +122,6 @@ export const getAllCompletedTransactions = async (token) => {
 };
 
 /**
- * Get all pending doctor payouts
- */
-export const getPendingPayouts = async (token) => {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/admin/payouts/pending`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error fetching pending payouts:', error);
-    throw error;
-  }
-};
-
-/**
  * Get all transactions for a specific doctor
  */
 export const getDoctorTransactions = async (token, doctorId) => {
@@ -171,42 +153,6 @@ export const getTransactionMetrics = async (token) => {
     return response.data;
   } catch (error) {
     console.error('Error fetching transaction metrics:', error);
-    throw error;
-  }
-};
-
-/**
- * Mark a single doctor payout as completed
- */
-export const markDoctorPayoutCompleted = async (token, paymentId) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/admin/payouts/${paymentId}/mark-completed`, {}, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error marking doctor payout as completed:', error);
-    throw error;
-  }
-};
-
-/**
- * Mark multiple doctor payouts as completed (Batch Operation)
- */
-export const batchMarkDoctorPayoutsCompleted = async (token, paymentIds) => {
-  try {
-    const response = await axios.post(`${API_BASE_URL}/admin/payouts/batch-mark-completed`, paymentIds, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.data;
-  } catch (error) {
-    console.error('Error in batch marking doctor payouts:', error);
     throw error;
   }
 };

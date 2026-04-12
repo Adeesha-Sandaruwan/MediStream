@@ -203,12 +203,14 @@ public class PaymentService {
             // Update payment record
             payment.setPaymentStatus(PaymentStatus.COMPLETED);
             payment.setCompletedAt(LocalDateTime.now());
+            payment.setDoctorPayoutStatus("COMPLETED");
+            payment.setDoctorPayoutDate(LocalDateTime.now());
             payment.setPaymentMethodLastFour(paymentMethodLastFour);
             payment.setPaymentMethodType(paymentMethodType);
             payment.setTransactionReference(paymentIntent.getId());
             payment.setReceiptUrl(null);
-            payment.setNotes("Payment completed successfully via Stripe. Platform fee: " + payment.getPlatformFee() + 
-                           ", Doctor earnings: " + payment.getDoctorEarnings());
+            payment.setNotes("Payment completed successfully via Stripe. Split applied: Doctor 85%, Platform 15%. " +
+                    "Platform fee: " + payment.getPlatformFee() + ", Doctor earnings: " + payment.getDoctorEarnings());
 
             payment = paymentRepository.save(payment);
             log.info("Payment status updated to COMPLETED for ID: {}. Platform fee: {}, Doctor earnings: {}",
