@@ -125,6 +125,8 @@ public class SymptomAnalysisService {
                 - Keep suggestions brief, practical, and non-diagnostic.
                 - Recommend 1 to 3 relevant specialties.
                 - If emergency red flags are likely, set urgencyLevel to HIGH.
+                - Do not provide final diagnosis, prescriptions, or dosage instructions.
+                - If urgencyLevel is HIGH, include advice to seek immediate emergency care.
                 - disclaimer must clearly state this is not a diagnosis.
 
                 Patient input:

@@ -72,11 +72,11 @@ export default function PatientSymptomChecker() {
               </p>
               <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Describe Symptoms, Get Early Guidance</h1>
               <p className="mt-2 max-w-2xl text-orange-50">
-                This tool gives preliminary suggestions and recommended specialties for faster next steps.
+                This tool gives preliminary suggestions and recommended specialties for faster next steps, not a confirmed diagnosis.
               </p>
             </div>
             <div className="rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-sm font-medium">
-              <p className="inline-flex items-center gap-2"><ShieldAlert size={16} /> Not a final diagnosis</p>
+              <p className="inline-flex items-center gap-2"><ShieldAlert size={16} /> For guidance only, seek urgent care when needed</p>
             </div>
           </div>
         </section>
