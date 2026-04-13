@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+// REST controller for issuing and retrieving digital prescriptions.
+// Doctors create prescriptions linked to an appointment; patients can also view their own history.
 @RestController
 @RequestMapping("/api/doctors/prescriptions")
 @RequiredArgsConstructor
@@ -24,6 +26,8 @@ public class PrescriptionController {
 
     private final PrescriptionService prescriptionService;
 
+    // POST /api/doctors/prescriptions — Issues a new digital prescription.
+    // The doctor must have a valid signature image uploaded in their profile first.
     @PostMapping
     public ResponseEntity<DigitalPrescription> issue(
             Authentication authentication,
@@ -32,11 +36,15 @@ public class PrescriptionController {
         return ResponseEntity.ok(prescriptionService.issue(authentication.getName(), dto));
     }
 
+    // GET /api/doctors/prescriptions/mine — Returns all prescriptions issued by this doctor,
+    // ordered by issue date descending (most recent first).
     @GetMapping("/mine")
     public ResponseEntity<List<DigitalPrescription>> getMine(Authentication authentication) {
         return ResponseEntity.ok(prescriptionService.getMyIssuedPrescriptions(authentication.getName()));
     }
 
+    // GET /api/doctors/prescriptions/patient?patientEmail=... — Fetches all prescriptions
+    // for a specific patient (searched case-insensitively). Used in the doctor view.
     @GetMapping("/patient")
     public ResponseEntity<List<DigitalPrescription>> getPatientPrescriptions(
             @RequestParam String patientEmail
@@ -44,6 +52,8 @@ public class PrescriptionController {
         return ResponseEntity.ok(prescriptionService.getPatientPrescriptions(patientEmail));
     }
 
+    // GET /api/doctors/prescriptions/patient/me — Patient-facing endpoint.
+    // Returns all prescriptions for the currently logged-in user (treated as a patient here).
     @GetMapping("/patient/me")
     public ResponseEntity<List<DigitalPrescription>> getMyPatientPrescriptionHistory(
             Authentication authentication

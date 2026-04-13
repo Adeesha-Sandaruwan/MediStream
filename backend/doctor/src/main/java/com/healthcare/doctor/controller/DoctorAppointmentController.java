@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
+// REST controller for doctor-side appointment management.
+// Allows doctors to view pending requests, accept/reject them, and mark them as completed.
 @RestController
 @RequestMapping("/api/doctors/appointments")
 @RequiredArgsConstructor
@@ -28,6 +30,8 @@ public class DoctorAppointmentController {
 
     private final DoctorAppointmentService doctorAppointmentService;
 
+    // POST /api/doctors/appointments/requests — Doctor-initiated creation of a pending request.
+    // Typically called when a doctor manually submits an appointment from the UI.
     @PostMapping("/requests")
     public ResponseEntity<DoctorAppointmentRequest> createPendingRequest(
             Authentication authentication,
@@ -48,11 +52,16 @@ public class DoctorAppointmentController {
         return ResponseEntity.ok(doctorAppointmentService.createPendingRequestInternal(dto));
     }
 
+    // GET /api/doctors/appointments — Lists all appointment requests for the authenticated doctor.
+    // Triggers a background sync with the central appointment service before returning.
     @GetMapping
     public ResponseEntity<List<DoctorAppointmentRequest>> getMyRequests(Authentication authentication) {
         return ResponseEntity.ok(doctorAppointmentService.getMyRequests(authentication.getName()));
     }
 
+    // PUT /api/doctors/appointments/{appointmentId}/decision — Accept or reject a pending appointment.
+    // On acceptance, the appointment service is patched to APPROVED and a telemedicine room is synced.
+    // On rejection, the appointment service is notified and the patient receives a notification.
     @PutMapping("/{appointmentId}/decision")
     public ResponseEntity<DoctorAppointmentRequest> decide(
             Authentication authentication,
@@ -62,6 +71,8 @@ public class DoctorAppointmentController {
         return ResponseEntity.ok(doctorAppointmentService.decide(authentication.getName(), appointmentId, dto));
     }
 
+    // PATCH /api/doctors/appointments/{appointmentId}/complete — Marks an ACCEPTED appointment as COMPLETED.
+    // Only the owning doctor can call this; triggers a completion notification to the patient.
     @PatchMapping("/{appointmentId}/complete")
     public ResponseEntity<DoctorAppointmentRequest> complete(
             Authentication authentication,
@@ -70,6 +81,9 @@ public class DoctorAppointmentController {
         return ResponseEntity.ok(doctorAppointmentService.completeAppointment(authentication.getName(), appointmentId));
     }
 
+    // GET /api/doctors/appointments/{appointmentId}/reports — Returns uploaded medical reports
+    // for the patient linked to this appointment.
+    // Fetched from the patient service; requires the requesting doctor to own the appointment.
     @GetMapping("/{appointmentId}/reports")
     public ResponseEntity<List<Map<String, Object>>> getPatientReportsForAppointment(
             Authentication authentication,
