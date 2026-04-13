@@ -256,7 +256,7 @@ const AdminTransactionMonitor = () => {
     });
 
     setFilteredTransactions(filtered);
-  }, [searchQuery, statusFilter, dateRangeFilter, transactions, patientInfoById, doctorInfoById]);
+  }, [searchQuery, statusFilter, dateRangeFilter, transactions, patientInfoById, doctorInfoById, getEntityInfo]);
 
   const formatCurrency = (amount) => {
     if (!amount) return 'Rs. 0.00';
@@ -339,7 +339,7 @@ const AdminTransactionMonitor = () => {
           <button
             onClick={handleDownloadReport}
             disabled={isGeneratingPDF || !transactions.length}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isGeneratingPDF ? (
               <>
@@ -354,11 +354,11 @@ const AdminTransactionMonitor = () => {
             )}
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <select
               value={doctorReportDateRange}
               onChange={(e) => setDoctorReportDateRange(e.target.value)}
-              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0"
+              className="w-full sm:w-auto px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0"
             >
               <option value="LAST_30_DAYS">Last 30 Days</option>
               <option value="LAST_7_DAYS">Last 7 Days</option>
@@ -369,7 +369,7 @@ const AdminTransactionMonitor = () => {
             <button
               onClick={handleDownloadDoctorPayoutReport}
               disabled={isGeneratingDoctorPDF || !transactions.length}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              className="w-full flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {isGeneratingDoctorPDF ? (
                 <>
@@ -529,8 +529,49 @@ const AdminTransactionMonitor = () => {
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No transactions found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <>
+            <div className="md:hidden space-y-3">
+              {filteredTransactions.map((tx) => {
+                const patient = getEntityInfo(tx.patientId, 'PATIENT');
+                const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
+
+                return (
+                  <div key={tx.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-gray-500">Transaction</p>
+                        <p className="font-bold text-gray-900">#{tx.id}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg font-semibold text-xs ${getStatusBadgeClass(mapLedgerStatus(tx.paymentStatus))}`}>
+                        {mapLedgerStatus(tx.paymentStatus)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                      <div><span className="text-gray-500">Date:</span> <span className="text-gray-800">{formatDate(getTransactionDate(tx))}</span></div>
+                      <div><span className="text-gray-500">Patient:</span> <span className="font-medium text-gray-900">{patient.name}</span></div>
+                      <div className="break-all"><span className="text-gray-500">Patient Email:</span> <span className="text-gray-800">{patient.email}</span></div>
+                      <div><span className="text-gray-500">Doctor:</span> <span className="font-medium text-gray-900">{doctor.name}</span></div>
+                      <div className="break-all"><span className="text-gray-500">Doctor Email:</span> <span className="text-gray-800">{doctor.email}</span></div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-green-50 px-3 py-2">
+                        <p className="text-[11px] text-green-700">Gross</p>
+                        <p className="font-semibold text-green-800">{formatCurrency(tx.amount)}</p>
+                      </div>
+                      <div className="rounded-lg bg-indigo-50 px-3 py-2">
+                        <p className="text-[11px] text-indigo-700">Platform Fee</p>
+                        <p className="font-semibold text-indigo-800">{formatCurrency(tx.platformFee)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
@@ -608,6 +649,7 @@ const AdminTransactionMonitor = () => {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </div>
       </div>
@@ -627,7 +669,7 @@ const AdminTransactionMonitor = () => {
       )}
 
       {/* Tab Navigation */}
-      <div className="bg-white borders border-gray-200 rounded-xl shadow-lg p-1 flex gap-1">
+      <div className="bg-white borders border-gray-200 rounded-xl shadow-lg p-1 flex gap-1 overflow-x-auto">
         {[
           { id: 'overview', label: 'Overview', icon: DollarSign },
           { id: 'transactions', label: 'All Transactions', icon: TrendingUp },
@@ -643,7 +685,7 @@ const AdminTransactionMonitor = () => {
                 setStatusFilter('ALL');
                 setDateRangeFilter('LAST_30_DAYS');
               }}
-              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-indigo-600 text-white shadow-md'
                   : 'text-gray-700 hover:bg-gray-50'
