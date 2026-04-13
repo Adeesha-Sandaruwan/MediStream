@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Loader2,
   Search,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -16,11 +17,13 @@ import {
 import { getAllUsers } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
 import { getAllDoctors } from '../api/doctorApi';
+import { generateMonthlyRevenueReport } from '../utils/reportGenerator';
 
 const AdminTransactionMonitor = () => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [error, setError] = useState('');
 
   // Overview tab state
@@ -42,6 +45,10 @@ const AdminTransactionMonitor = () => {
       if (activeTab === 'overview') {
         const metricsData = await getTransactionMetrics(token);
         setMetrics(metricsData);
+
+        // Also load transactions for PDF generation
+        const ledgerData = await getGlobalTransactionLedger(token);
+        setTransactions(ledgerData);
       } else if (activeTab === 'transactions') {
         // ==================== GLOBAL TRANSACTION LEDGER LOGIC: DATA FETCH ====================
         const [ledgerData, users, patients, doctors] = await Promise.all([
@@ -169,6 +176,18 @@ const AdminTransactionMonitor = () => {
     });
   };
 
+  const handleDownloadReport = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      generateMonthlyRevenueReport(transactions, metrics);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate report. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
   // ==================== RENDER SECTIONS ====================
 
   const renderOverview = () => {
@@ -182,6 +201,27 @@ const AdminTransactionMonitor = () => {
 
     return (
       <div className="space-y-6">
+        {/* Download Report Button */}
+        <div className="flex justify-end">
+          <button
+            onClick={handleDownloadReport}
+            disabled={isGeneratingPDF || !transactions.length}
+            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {isGeneratingPDF ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <Download size={18} />
+                <span>Download Monthly Report</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Metrics Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Transactions */}
