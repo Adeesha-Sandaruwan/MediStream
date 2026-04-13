@@ -17,14 +17,19 @@ import {
 import { getAllUsers } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
 import { getAllDoctors } from '../api/doctorApi';
-import { generateMonthlyRevenueReport } from '../utils/reportGenerator';
+import {
+  generateDoctorPayoutReport,
+  generateMonthlyRevenueReport,
+} from '../utils/reportGenerator';
 
 const AdminTransactionMonitor = () => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingDoctorPDF, setIsGeneratingDoctorPDF] = useState(false);
   const [error, setError] = useState('');
+  const [doctorReportDateRange, setDoctorReportDateRange] = useState('LAST_30_DAYS');
 
   // Overview tab state
   const [metrics, setMetrics] = useState(null);
@@ -38,17 +43,38 @@ const AdminTransactionMonitor = () => {
   const [patientNameById, setPatientNameById] = useState({});
   const [doctorNameById, setDoctorNameById] = useState({});
 
+  const buildDoctorLookup = (users = [], doctors = []) => {
+    const doctorEmailToName = doctors.reduce((acc, profile) => {
+      if (profile?.email) {
+        const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+        acc[profile.email] = fullName ? `Dr. ${fullName}` : profile.email;
+      }
+      return acc;
+    }, {});
+
+    return users.reduce((acc, user) => {
+      if (user?.role === 'DOCTOR') {
+        acc[user.id] = doctorEmailToName[user.email] || user.email || `Doctor #${user.id}`;
+      }
+      return acc;
+    }, {});
+  };
+
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
       if (activeTab === 'overview') {
-        const metricsData = await getTransactionMetrics(token);
-        setMetrics(metricsData);
+        const [metricsData, ledgerData, users, doctors] = await Promise.all([
+          getTransactionMetrics(token),
+          getGlobalTransactionLedger(token),
+          getAllUsers(token),
+          getAllDoctors(token),
+        ]);
 
-        // Also load transactions for PDF generation
-        const ledgerData = await getGlobalTransactionLedger(token);
+        setMetrics(metricsData);
         setTransactions(ledgerData);
+        setDoctorNameById(buildDoctorLookup(users, doctors));
       } else if (activeTab === 'transactions') {
         // ==================== GLOBAL TRANSACTION LEDGER LOGIC: DATA FETCH ====================
         const [ledgerData, users, patients, doctors] = await Promise.all([
@@ -66,23 +92,12 @@ const AdminTransactionMonitor = () => {
           return acc;
         }, {});
 
-        const doctorEmailToName = doctors.reduce((acc, profile) => {
-          if (profile?.email) {
-            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-            acc[profile.email] = fullName ? `Dr. ${fullName}` : profile.email;
-          }
-          return acc;
-        }, {});
-
         const patientLookup = {};
-        const doctorLookup = {};
+        const doctorLookup = buildDoctorLookup(users, doctors);
 
         users.forEach((user) => {
           if (user?.role === 'PATIENT') {
             patientLookup[user.id] = patientEmailToName[user.email] || user.email || `Patient #${user.id}`;
-          }
-          if (user?.role === 'DOCTOR') {
-            doctorLookup[user.id] = doctorEmailToName[user.email] || user.email || `Doctor #${user.id}`;
           }
         });
 
@@ -188,6 +203,38 @@ const AdminTransactionMonitor = () => {
     }
   };
 
+  const getTransactionsForRange = (range, sourceTransactions = transactions) => {
+    return sourceTransactions.filter((tx) => isWithinDateRange(getTransactionDate(tx), range));
+  };
+
+  const getDateRangeLabel = (range) => {
+    if (range === 'LAST_7_DAYS') return 'Last 7 Days';
+    if (range === 'LAST_30_DAYS') return 'Last 30 Days';
+    if (range === 'LAST_90_DAYS') return 'Last 90 Days';
+    return 'All Time';
+  };
+
+  const handleDownloadDoctorPayoutReport = async () => {
+    try {
+      setIsGeneratingDoctorPDF(true);
+
+      const reportTransactions = getTransactionsForRange(doctorReportDateRange).filter(
+        (tx) => mapLedgerStatus(tx.paymentStatus) === 'SUCCESS'
+      );
+
+      generateDoctorPayoutReport(
+        reportTransactions,
+        doctorNameById,
+        getDateRangeLabel(doctorReportDateRange)
+      );
+    } catch (err) {
+      console.error('Error generating doctor payout report:', err);
+      setError('Failed to generate doctor payout report. Please try again.');
+    } finally {
+      setIsGeneratingDoctorPDF(false);
+    }
+  };
+
   // ==================== RENDER SECTIONS ====================
 
   const renderOverview = () => {
@@ -201,12 +248,12 @@ const AdminTransactionMonitor = () => {
 
     return (
       <div className="space-y-6">
-        {/* Download Report Button */}
-        <div className="flex justify-end">
+        {/* Download Report Buttons */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <button
             onClick={handleDownloadReport}
             disabled={isGeneratingPDF || !transactions.length}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
             {isGeneratingPDF ? (
               <>
@@ -220,6 +267,37 @@ const AdminTransactionMonitor = () => {
               </>
             )}
           </button>
+
+          <div className="flex items-center gap-2">
+            <select
+              value={doctorReportDateRange}
+              onChange={(e) => setDoctorReportDateRange(e.target.value)}
+              className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0"
+            >
+              <option value="LAST_30_DAYS">Last 30 Days</option>
+              <option value="LAST_7_DAYS">Last 7 Days</option>
+              <option value="LAST_90_DAYS">Last 90 Days</option>
+              <option value="ALL_TIME">All Time</option>
+            </select>
+
+            <button
+              onClick={handleDownloadDoctorPayoutReport}
+              disabled={isGeneratingDoctorPDF || !transactions.length}
+              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isGeneratingDoctorPDF ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>Download Doctor Payout Report</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Metrics Summary Cards */}
