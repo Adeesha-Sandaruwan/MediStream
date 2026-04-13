@@ -16,7 +16,24 @@ const drawCellText = (pdf, text, x, y, width, align = 'left') => {
   pdf.text(String(text), x + 2, y + 5);
 };
 
-export const generateMonthlyRevenueReport = (transactions, metrics) => {
+const truncateText = (value, maxChars) => {
+  if (!value) return '';
+  const text = String(value);
+  if (text.length <= maxChars) return text;
+  return `${text.substring(0, maxChars - 3)}...`;
+};
+
+const resolveIdentity = (lookup = {}, entityId, fallbackLabel) => {
+  const info = lookup[String(entityId)] || {};
+  return {
+    entityId: info.entityId ?? entityId ?? 'N/A',
+    name: info.name || fallbackLabel,
+    email: info.email || 'N/A',
+  };
+};
+
+export const generateMonthlyRevenueReport = (transactions, metrics, options = {}) => {
+  const { patientInfoById = {}, doctorInfoById = {} } = options;
   // Prepare data - group transactions by date
   const dailyData = {};
 
@@ -149,20 +166,21 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
   yPosition += 8;
 
   // Table headers
-  const headers = ['Transaction Date', 'Transactions', 'Gross Revenue (LKR)', 'Platform Fees (LKR)', 'Refunds (LKR)'];
-  const colWidths = [40, 28, 32, 32, 28];
+  const headers = ['No.', 'Transaction Date', 'Transactions', 'Gross Revenue (LKR)', 'Platform Fees (LKR)', 'Refunds (LKR)'];
+  const colWidths = [14, 34, 24, 36, 36, 36];
   const rowHeight = 7;
+  const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
   // Draw header
   pdf.setFillColor(79, 70, 229);
+  pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(9);
   pdf.setFont(undefined, 'bold');
 
   let xPos = margin;
   headers.forEach((header, index) => {
-    pdf.rect(xPos, yPosition, colWidths[index], rowHeight, 'F');
-    drawCellText(pdf, header, xPos, yPosition, colWidths[index], index === 0 ? 'left' : 'center');
+    drawCellText(pdf, header, xPos, yPosition, colWidths[index], 'center');
     xPos += colWidths[index];
   });
 
@@ -182,14 +200,14 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
 
       // Redraw header on new page
       pdf.setFillColor(79, 70, 229);
+      pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(9);
       pdf.setFont(undefined, 'bold');
 
       xPos = margin;
       headers.forEach((header, index) => {
-        pdf.rect(xPos, yPosition, colWidths[index], rowHeight, 'F');
-        drawCellText(pdf, header, xPos, yPosition, colWidths[index], index === 0 ? 'left' : 'center');
+        drawCellText(pdf, header, xPos, yPosition, colWidths[index], 'center');
         xPos += colWidths[index];
       });
 
@@ -202,7 +220,7 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
     // Alternate row colors
     if (rowCount % 2 === 0) {
       pdf.setFillColor(245, 245, 250);
-      pdf.rect(margin, yPosition, pageWidth - 2 * margin, rowHeight, 'F');
+      pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
     }
 
     const dateStr = new Date(day.date).toLocaleDateString('en-US', {
@@ -212,6 +230,7 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
     });
 
     const rowData = [
+      (rowCount + 1).toString(),
       dateStr,
       day.transactions.toString(),
       formatReportCurrency(day.grossVolume),
@@ -221,7 +240,7 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
 
     xPos = margin;
     rowData.forEach((data, index) => {
-      const align = index === 0 ? 'left' : index === 1 ? 'center' : 'right';
+      const align = index === 0 || index === 2 ? 'center' : index === 1 ? 'left' : 'right';
       drawCellText(pdf, data, xPos, yPosition, colWidths[index], align);
       xPos += colWidths[index];
     });
@@ -229,6 +248,107 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
     yPosition += rowHeight;
     rowCount += 1;
   });
+
+  // ==================== TRANSACTION IDENTITY TABLE ====================
+  const identityRows = transactions
+    .slice()
+    .sort((a, b) => new Date(getTransactionDateValue(b) || 0) - new Date(getTransactionDateValue(a) || 0))
+    .map((tx) => {
+      const patient = resolveIdentity(patientInfoById, tx.patientId, 'Unknown Patient');
+      const doctor = resolveIdentity(doctorInfoById, tx.doctorId, 'Unknown Doctor');
+
+      return {
+        id: tx.id,
+        patientLabel: `ID:${patient.entityId} | ${patient.name}`,
+        patientEmail: patient.email,
+        doctorLabel: `ID:${doctor.entityId} | ${doctor.name}`,
+        doctorEmail: doctor.email,
+      };
+    });
+
+  if (identityRows.length > 0) {
+    if (yPosition + 16 > pageHeight - margin) {
+      pdf.addPage();
+      yPosition = margin;
+    }
+
+    yPosition += 8;
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, 'bold');
+    pdf.setTextColor(0, 0, 0);
+    pdf.text('Transaction Party Details', margin, yPosition);
+
+    yPosition += 8;
+
+    const identityHeaders = ['No.', 'Tx ID', 'Patient (ID + Name)', 'Patient Email', 'Doctor (ID + Name)', 'Doctor Email'];
+    const identityColWidths = [12, 14, 44, 34, 44, 34];
+    const identityRowHeight = 7;
+    const identityTableWidth = identityColWidths.reduce((sum, width) => sum + width, 0);
+
+    pdf.setFillColor(55, 48, 163);
+    pdf.rect(margin, yPosition, identityTableWidth, identityRowHeight, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(8);
+    pdf.setFont(undefined, 'bold');
+
+    let identityX = margin;
+    identityHeaders.forEach((header, index) => {
+      drawCellText(pdf, header, identityX, yPosition, identityColWidths[index], 'center');
+      identityX += identityColWidths[index];
+    });
+
+    yPosition += identityRowHeight;
+    pdf.setTextColor(0, 0, 0);
+    pdf.setFont(undefined, 'normal');
+    pdf.setFontSize(7);
+
+    identityRows.forEach((row, index) => {
+      if (yPosition + identityRowHeight > pageHeight - margin) {
+        pdf.addPage();
+        yPosition = margin;
+
+        pdf.setFillColor(55, 48, 163);
+        pdf.rect(margin, yPosition, identityTableWidth, identityRowHeight, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(8);
+        pdf.setFont(undefined, 'bold');
+
+        identityX = margin;
+        identityHeaders.forEach((header, headerIndex) => {
+          drawCellText(pdf, header, identityX, yPosition, identityColWidths[headerIndex], 'center');
+          identityX += identityColWidths[headerIndex];
+        });
+
+        yPosition += identityRowHeight;
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(7);
+      }
+
+      if (index % 2 === 0) {
+        pdf.setFillColor(247, 247, 252);
+        pdf.rect(margin, yPosition, identityTableWidth, identityRowHeight, 'F');
+      }
+
+      const rowData = [
+        (index + 1).toString(),
+        `#${row.id}`,
+        truncateText(row.patientLabel, 30),
+        truncateText(row.patientEmail, 24),
+        truncateText(row.doctorLabel, 30),
+        truncateText(row.doctorEmail, 24),
+      ];
+
+      identityX = margin;
+      rowData.forEach((data, colIndex) => {
+        const align = colIndex <= 1 ? 'center' : 'left';
+        drawCellText(pdf, data, identityX, yPosition, identityColWidths[colIndex], align);
+        identityX += identityColWidths[colIndex];
+      });
+
+      yPosition += identityRowHeight;
+    });
+  }
 
   // ==================== FOOTER ====================
   const totalPages = pdf.internal.pages.length - 1;
@@ -249,12 +369,14 @@ export const generateMonthlyRevenueReport = (transactions, metrics) => {
   pdf.save(fileName);
 };
 
-export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, selectedPeriod = 'All Time') => {
+export const generateDoctorPayoutReport = (transactions, doctorInfoById = {}, selectedPeriod = 'All Time') => {
   const doctorStatsById = {};
 
-  Object.entries(doctorNameById).forEach(([doctorId, doctorName]) => {
+  Object.entries(doctorInfoById).forEach(([doctorId, doctorInfo]) => {
     doctorStatsById[doctorId] = {
-      doctorName: doctorName || `Doctor #${doctorId}`,
+      doctorId,
+      doctorName: doctorInfo?.name || `Doctor ${doctorId}`,
+      doctorEmail: doctorInfo?.email || 'N/A',
       appointmentsCompleted: 0,
       totalEarnings: 0,
       paidOutAmount: 0,
@@ -269,8 +391,11 @@ export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, se
 
     const doctorId = tx.doctorId?.toString() || 'UNKNOWN';
     if (!doctorStatsById[doctorId]) {
+      const doctorInfo = doctorInfoById[doctorId] || {};
       doctorStatsById[doctorId] = {
-        doctorName: doctorNameById[doctorId] || `Doctor #${doctorId}`,
+        doctorId,
+        doctorName: doctorInfo.name || `Doctor ${doctorId}`,
+        doctorEmail: doctorInfo.email || 'N/A',
         appointmentsCompleted: 0,
         totalEarnings: 0,
         paidOutAmount: 0,
@@ -386,19 +511,20 @@ export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, se
 
   yPosition += 8;
 
-  const headers = ['Doctor Name', 'Completed Appointments', 'Total Earnings (LKR)', 'Paid Out Amount (LKR)'];
-  const colWidths = [58, 28, 42, 42];
+  const headers = ['No.', 'Doctor ID', 'Doctor Name', 'Doctor Email', 'Completed Appointments', 'Total Earnings (LKR)', 'Paid Out Amount (LKR)'];
+  const colWidths = [10, 16, 36, 36, 22, 30, 30];
   const rowHeight = 7;
+  const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
 
   pdf.setFillColor(234, 88, 12);
+  pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(9);
   pdf.setFont(undefined, 'bold');
 
   let xPos = margin;
   headers.forEach((header, index) => {
-    pdf.rect(xPos, yPosition, colWidths[index], rowHeight, 'F');
-    drawCellText(pdf, header, xPos, yPosition, colWidths[index], index === 0 ? 'left' : 'center');
+    drawCellText(pdf, header, xPos, yPosition, colWidths[index], 'center');
     xPos += colWidths[index];
   });
 
@@ -414,14 +540,14 @@ export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, se
       yPosition = margin;
 
       pdf.setFillColor(234, 88, 12);
+      pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
       pdf.setTextColor(255, 255, 255);
       pdf.setFontSize(9);
       pdf.setFont(undefined, 'bold');
 
       xPos = margin;
       headers.forEach((header, index) => {
-        pdf.rect(xPos, yPosition, colWidths[index], rowHeight, 'F');
-        drawCellText(pdf, header, xPos, yPosition, colWidths[index], index === 0 ? 'left' : 'center');
+        drawCellText(pdf, header, xPos, yPosition, colWidths[index], 'center');
         xPos += colWidths[index];
       });
 
@@ -433,15 +559,17 @@ export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, se
 
     if (rowCount % 2 === 0) {
       pdf.setFillColor(253, 247, 237);
-      pdf.rect(margin, yPosition, pageWidth - 2 * margin, rowHeight, 'F');
+      pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
     }
 
-    const doctorName = row.doctorName.length > 36
-      ? `${row.doctorName.substring(0, 33)}...`
-      : row.doctorName;
+    const doctorName = truncateText(row.doctorName, 26);
+    const doctorEmail = truncateText(row.doctorEmail, 24);
 
     const rowData = [
+      (rowCount + 1).toString(),
+      row.doctorId,
       doctorName,
+      doctorEmail,
       row.appointmentsCompleted.toString(),
       formatReportCurrency(row.totalEarnings),
       formatReportCurrency(row.paidOutAmount),
@@ -449,7 +577,7 @@ export const generateDoctorPayoutReport = (transactions, doctorNameById = {}, se
 
     xPos = margin;
     rowData.forEach((data, index) => {
-      const align = index === 0 ? 'left' : index === 1 ? 'center' : 'right';
+      const align = index === 0 || index === 1 || index === 4 ? 'center' : (index >= 5 ? 'right' : 'left');
       drawCellText(pdf, data, xPos, yPosition, colWidths[index], align);
       xPos += colWidths[index];
     });

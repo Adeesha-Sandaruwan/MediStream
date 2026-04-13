@@ -40,41 +40,134 @@ const AdminTransactionMonitor = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dateRangeFilter, setDateRangeFilter] = useState('LAST_30_DAYS');
-  const [patientNameById, setPatientNameById] = useState({});
-  const [doctorNameById, setDoctorNameById] = useState({});
+  const [patientInfoById, setPatientInfoById] = useState({});
+  const [doctorInfoById, setDoctorInfoById] = useState({});
 
-  const buildDoctorLookup = (users = [], doctors = []) => {
-    const doctorEmailToName = doctors.reduce((acc, profile) => {
-      if (profile?.email) {
-        const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-        acc[profile.email] = fullName ? `Dr. ${fullName}` : profile.email;
+  const getFullName = useCallback((profile, isDoctor = false) => {
+    const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+    if (!fullName) return '';
+    return isDoctor ? `Dr. ${fullName}` : fullName;
+  }, []);
+
+  const buildIdentityLookups = useCallback((users = [], patients = [], doctors = []) => {
+    const usersById = users.reduce((acc, user) => {
+      if (user?.id != null) {
+        acc[String(user.id)] = user;
       }
       return acc;
     }, {});
 
-    return users.reduce((acc, user) => {
+    const patientProfilesByEmail = patients.reduce((acc, profile) => {
+      const email = profile?.email?.toLowerCase();
+      if (email) {
+        acc[email] = profile;
+      }
+      return acc;
+    }, {});
+
+    const doctorProfilesByEmail = doctors.reduce((acc, profile) => {
+      const email = profile?.email?.toLowerCase();
+      if (email) {
+        acc[email] = profile;
+      }
+      return acc;
+    }, {});
+
+    const patientProfilesById = patients.reduce((acc, profile) => {
+      if (profile?.id != null) {
+        acc[String(profile.id)] = profile;
+      }
+      return acc;
+    }, {});
+
+    const doctorProfilesById = doctors.reduce((acc, profile) => {
+      if (profile?.id != null) {
+        acc[String(profile.id)] = profile;
+      }
+      return acc;
+    }, {});
+
+    const buildInfo = (entityId, role) => {
+      const idKey = String(entityId);
+      const user = usersById[idKey];
+      const userEmail = user?.email?.toLowerCase();
+      const profileById = role === 'PATIENT' ? patientProfilesById[idKey] : doctorProfilesById[idKey];
+      const profileByEmail = userEmail
+        ? (role === 'PATIENT' ? patientProfilesByEmail[userEmail] : doctorProfilesByEmail[userEmail])
+        : null;
+
+      const profile = profileByEmail || profileById;
+      const fallbackEmail = profile?.email || user?.email || 'N/A';
+      const name = profile ? getFullName(profile, role === 'DOCTOR') : '';
+
+      return {
+        entityId: entityId ?? 'N/A',
+        profileId: profile?.id ?? 'N/A',
+        name: name || fallbackEmail,
+        email: fallbackEmail,
+      };
+    };
+
+    const patientLookup = {};
+    const doctorLookup = {};
+
+    users.forEach((user) => {
+      if (user?.role === 'PATIENT') {
+        patientLookup[String(user.id)] = buildInfo(user.id, 'PATIENT');
+      }
       if (user?.role === 'DOCTOR') {
-        acc[user.id] = doctorEmailToName[user.email] || user.email || `Doctor #${user.id}`;
+        doctorLookup[String(user.id)] = buildInfo(user.id, 'DOCTOR');
       }
-      return acc;
-    }, {});
-  };
+    });
+
+    patients.forEach((profile) => {
+      const key = String(profile.id);
+      if (!patientLookup[key]) {
+        patientLookup[key] = buildInfo(profile.id, 'PATIENT');
+      }
+    });
+
+    doctors.forEach((profile) => {
+      const key = String(profile.id);
+      if (!doctorLookup[key]) {
+        doctorLookup[key] = buildInfo(profile.id, 'DOCTOR');
+      }
+    });
+
+    return { patientLookup, doctorLookup };
+  }, [getFullName]);
+
+  const getEntityInfo = useCallback((id, type) => {
+    const key = String(id);
+    const source = type === 'PATIENT' ? patientInfoById : doctorInfoById;
+    const fallbackLabel = type === 'PATIENT' ? 'Unknown Patient' : 'Unknown Doctor';
+
+    return source[key] || {
+      entityId: id ?? 'N/A',
+      profileId: 'N/A',
+      name: fallbackLabel,
+      email: 'N/A',
+    };
+  }, [patientInfoById, doctorInfoById]);
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
       if (activeTab === 'overview') {
-        const [metricsData, ledgerData, users, doctors] = await Promise.all([
+        const [metricsData, ledgerData, users, patients, doctors] = await Promise.all([
           getTransactionMetrics(token),
           getGlobalTransactionLedger(token),
           getAllUsers(token),
+          getAllPatients(token),
           getAllDoctors(token),
         ]);
 
         setMetrics(metricsData);
         setTransactions(ledgerData);
-        setDoctorNameById(buildDoctorLookup(users, doctors));
+        const { patientLookup, doctorLookup } = buildIdentityLookups(users, patients, doctors);
+        setPatientInfoById(patientLookup);
+        setDoctorInfoById(doctorLookup);
       } else if (activeTab === 'transactions') {
         // ==================== GLOBAL TRANSACTION LEDGER LOGIC: DATA FETCH ====================
         const [ledgerData, users, patients, doctors] = await Promise.all([
@@ -84,25 +177,9 @@ const AdminTransactionMonitor = () => {
           getAllDoctors(token),
         ]);
 
-        const patientEmailToName = patients.reduce((acc, profile) => {
-          if (profile?.email) {
-            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-            acc[profile.email] = fullName || profile.email;
-          }
-          return acc;
-        }, {});
-
-        const patientLookup = {};
-        const doctorLookup = buildDoctorLookup(users, doctors);
-
-        users.forEach((user) => {
-          if (user?.role === 'PATIENT') {
-            patientLookup[user.id] = patientEmailToName[user.email] || user.email || `Patient #${user.id}`;
-          }
-        });
-
-        setPatientNameById(patientLookup);
-        setDoctorNameById(doctorLookup);
+        const { patientLookup, doctorLookup } = buildIdentityLookups(users, patients, doctors);
+        setPatientInfoById(patientLookup);
+        setDoctorInfoById(doctorLookup);
         setTransactions(ledgerData);
       }
     } catch (err) {
@@ -111,7 +188,7 @@ const AdminTransactionMonitor = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeTab]);
+  }, [token, activeTab, buildIdentityLookups]);
 
   useEffect(() => {
     loadDashboardData();
@@ -159,12 +236,18 @@ const AdminTransactionMonitor = () => {
     const filtered = transactions.filter((tx) => {
       const ledgerStatus = mapLedgerStatus(tx.paymentStatus);
       const query = searchQuery.trim().toLowerCase();
+      const patientInfo = getEntityInfo(tx.patientId, 'PATIENT');
+      const doctorInfo = getEntityInfo(tx.doctorId, 'DOCTOR');
 
       const matchesSearch =
         query.length === 0 ||
         tx.id?.toString().toLowerCase().includes(query) ||
         tx.transactionReference?.toLowerCase().includes(query) ||
-        tx.stripePaymentIntentId?.toLowerCase().includes(query);
+        tx.stripePaymentIntentId?.toLowerCase().includes(query) ||
+        patientInfo.name.toLowerCase().includes(query) ||
+        patientInfo.email.toLowerCase().includes(query) ||
+        doctorInfo.name.toLowerCase().includes(query) ||
+        doctorInfo.email.toLowerCase().includes(query);
 
       const matchesStatus = statusFilter === 'ALL' || ledgerStatus === statusFilter;
       const matchesDateRange = isWithinDateRange(getTransactionDate(tx), dateRangeFilter);
@@ -173,7 +256,7 @@ const AdminTransactionMonitor = () => {
     });
 
     setFilteredTransactions(filtered);
-  }, [searchQuery, statusFilter, dateRangeFilter, transactions]);
+  }, [searchQuery, statusFilter, dateRangeFilter, transactions, patientInfoById, doctorInfoById]);
 
   const formatCurrency = (amount) => {
     if (!amount) return 'Rs. 0.00';
@@ -194,7 +277,10 @@ const AdminTransactionMonitor = () => {
   const handleDownloadReport = async () => {
     try {
       setIsGeneratingPDF(true);
-      generateMonthlyRevenueReport(transactions, metrics);
+      generateMonthlyRevenueReport(transactions, metrics, {
+        patientInfoById,
+        doctorInfoById,
+      });
     } catch (err) {
       console.error('Error generating PDF:', err);
       setError('Failed to generate report. Please try again.');
@@ -224,7 +310,7 @@ const AdminTransactionMonitor = () => {
 
       generateDoctorPayoutReport(
         reportTransactions,
-        doctorNameById,
+        doctorInfoById,
         getDateRangeLabel(doctorReportDateRange)
       );
     } catch (err) {
@@ -454,10 +540,22 @@ const AdminTransactionMonitor = () => {
                       Transaction ID
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Patient ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Patient Name
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Patient Email
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Doctor ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Doctor Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Doctor Email
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Gross Amount
@@ -471,16 +569,24 @@ const AdminTransactionMonitor = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((tx) => (
+                  {filteredTransactions.map((tx) => {
+                    const patient = getEntityInfo(tx.patientId, 'PATIENT');
+                    const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
+
+                    return (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDate(getTransactionDate(tx))}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900">#{tx.id}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-700">{patient.entityId}</td>
                       <td className="px-4 py-3 font-medium text-gray-700">
-                        {patientNameById[tx.patientId] || `Patient #${tx.patientId}`}
+                        {patient.name}
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{patient.email}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-700">{doctor.entityId}</td>
                       <td className="px-4 py-3 font-medium text-gray-700">
-                        {doctorNameById[tx.doctorId] || `Doctor #${tx.doctorId}`}
+                        {doctor.name}
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{doctor.email}</td>
                       <td className="px-4 py-3">
                         <span className="px-3 py-1 bg-green-50 text-green-700 rounded-lg font-semibold text-sm">
                           {formatCurrency(tx.amount)}
@@ -497,7 +603,8 @@ const AdminTransactionMonitor = () => {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
