@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getMyPrescriptionsAsPatient } from '../api/patientApi';
 import { Link } from 'react-router-dom';
-import { Loader2, Pill, User, Calendar, Activity, AlertCircle, Sparkles, ClipboardCheck } from 'lucide-react';
+import { Loader2, Pill, User, Calendar, Activity, AlertCircle, ClipboardCheck, Download } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 const PatientPrescriptions = () => {
     const { token } = useAuth();
@@ -28,6 +29,86 @@ const PatientPrescriptions = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleDownloadPrescriptionPdf = (rx) => {
+        const doc = new jsPDF();
+        const issuedDate = rx.issuedAt ? new Date(rx.issuedAt).toLocaleString() : 'N/A';
+        const pageWidth = doc.internal.pageSize.getWidth();
+
+        doc.setFillColor(245, 158, 11);
+        doc.rect(0, 0, pageWidth, 28, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(17);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Digital Prescription', 14, 18);
+
+        doc.setFontSize(10);
+        doc.text('MediStream Patient Copy', pageWidth - 54, 18);
+
+        doc.setTextColor(31, 41, 55);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+
+        doc.setFillColor(255, 247, 237);
+        doc.roundedRect(12, 34, pageWidth - 24, 35, 3, 3, 'F');
+        doc.text(`Doctor: ${rx.doctorEmail || 'N/A'}`, 16, 44);
+        doc.text(`Patient: ${rx.patientEmail || 'N/A'}`, 16, 52);
+        doc.text(`Issued At: ${issuedDate}`, 16, 60);
+        doc.text(`Appointment ID: ${rx.appointmentId || 'N/A'}`, pageWidth / 2, 44);
+        doc.text(`Follow-up Date: ${rx.followUpDate || 'N/A'}`, pageWidth / 2, 52);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(180, 83, 9);
+        doc.text('Diagnosis', 14, 83);
+        doc.setTextColor(31, 41, 55);
+        doc.setFont('helvetica', 'normal');
+        const diagnosisText = doc.splitTextToSize(rx.diagnosis || 'N/A', pageWidth - 28);
+        doc.text(diagnosisText, 14, 91);
+
+        let y = 100 + diagnosisText.length * 5;
+
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(12, y, pageWidth - 24, 52, 3, 3, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(79, 70, 229);
+        doc.text('Medications', 16, y + 10);
+        doc.setTextColor(5, 150, 105);
+        doc.text("Doctor Advice", pageWidth / 2 + 4, y + 10);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(31, 41, 55);
+        const meds = doc.splitTextToSize(rx.medications || 'N/A', (pageWidth - 40) / 2);
+        const advice = doc.splitTextToSize(rx.advice || 'No additional advice provided.', (pageWidth - 40) / 2);
+        doc.text(meds, 16, y + 18);
+        doc.text(advice, pageWidth / 2 + 4, y + 18);
+
+        y += 64;
+
+        doc.setDrawColor(209, 213, 219);
+        doc.line(14, y, pageWidth - 14, y);
+        y += 8;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(17, 24, 39);
+        doc.text('Doctor Signature', 14, y);
+
+        if (rx.doctorSignatureImage) {
+            try {
+                doc.addImage(rx.doctorSignatureImage, 'PNG', 14, y + 3, 56, 22);
+            } catch {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(9);
+                doc.text('Signature image unavailable', 14, y + 10);
+            }
+        } else {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.text('No signature image on file', 14, y + 10);
+        }
+
+        const safePatient = (rx.patientEmail || 'patient').replace(/[^a-zA-Z0-9]/g, '_');
+        doc.save(`prescription_${safePatient}_${rx.id || 'record'}.pdf`);
     };
 
     return (
@@ -123,6 +204,16 @@ const PatientPrescriptions = () => {
                                             <span className="text-amber-600 font-bold">{new Date(rx.followUpDate).toLocaleDateString()}</span>
                                         </div>
                                     )}
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDownloadPrescriptionPdf(rx)}
+                                            className="inline-flex items-center rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-800 transition-colors hover:bg-amber-200"
+                                        >
+                                            <Download className="mr-2" size={15} /> Download PDF
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))}

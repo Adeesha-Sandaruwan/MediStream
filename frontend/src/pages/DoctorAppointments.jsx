@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { CheckCircle2, Video, XCircle, CalendarDays, UserRound, Hourglass, ClipboardCheck, Clock3, FileText, X, Pill, Eye, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { completeAppointment, decideAppointment, getAppointmentDetailsById, getDoctorAppointments } from '../api/doctorApi';
+import { completeAppointment, decideAppointment, getAppointmentDetailsById, getAppointmentPatientReports, getDoctorAppointments, getPatientReportsByEmailFallback } from '../api/doctorApi';
+import { downloadReportSecurely, fetchReportBlobSecurely } from '../api/patientApi';
 
 const APPOINTMENT_API_BASE = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
 
 export default function DoctorAppointments() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [appointments, setAppointments] = useState([]);
@@ -19,6 +21,50 @@ export default function DoctorAppointments() {
   const [scheduledStartLocal, setScheduledStartLocal] = useState('');
   const [durationMinutes, setDurationMinutes] = useState(60);
   const [regenerateLink, setRegenerateLink] = useState(false);
+  const [reportsModal, setReportsModal] = useState(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reportsError, setReportsError] = useState('');
+  const [reportRows, setReportRows] = useState([]);
+  const [downloadingFileName, setDownloadingFileName] = useState('');
+  const [previewingFileName, setPreviewingFileName] = useState('');
+  const [reportPreview, setReportPreview] = useState(null);
+
+  const normalizeAppointments = (rows) => {
+    const byAppointmentId = new Map();
+    (Array.isArray(rows) ? rows : []).forEach((row) => {
+      const key = String(row?.appointmentId ?? row?.id ?? '');
+      if (!key) return;
+      const existing = byAppointmentId.get(key);
+      if (!existing) {
+        byAppointmentId.set(key, row);
+        return;
+      }
+
+      const existingTs = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      const currentTs = row?.updatedAt ? new Date(row.updatedAt).getTime() : 0;
+      const existingStatus = String(existing?.status || '').toUpperCase();
+      const currentStatus = String(row?.status || '').toUpperCase();
+
+      // Prefer a non-pending status when duplicates exist; otherwise keep the latest update.
+      const shouldReplace =
+        (existingStatus === 'PENDING' && currentStatus !== 'PENDING') ||
+        (currentTs >= existingTs && !(existingStatus !== 'PENDING' && currentStatus === 'PENDING'));
+
+      if (shouldReplace) {
+        byAppointmentId.set(key, { ...existing, ...row });
+      }
+    });
+
+    return Array.from(byAppointmentId.values());
+  };
+
+  useEffect(() => {
+    return () => {
+      if (reportPreview?.url) {
+        window.URL.revokeObjectURL(reportPreview.url);
+      }
+    };
+  }, [reportPreview]);
 
   const toDatetimeLocalValue = (input) => {
     const defaultFuture = new Date(Date.now() + 60 * 60 * 1000);
@@ -34,26 +80,38 @@ export default function DoctorAppointments() {
   const loadAppointments = useCallback(async () => {
     setError('');
     try {
-      const baseAppointments = await getDoctorAppointments(token);
-      const enrichedAppointments = await Promise.all(
+      const baseAppointmentsRaw = await getDoctorAppointments(token);
+      const baseAppointments = normalizeAppointments(baseAppointmentsRaw);
+      // Render the list immediately to avoid waiting on N extra detail requests.
+      setAppointments(baseAppointments);
+      setIsLoading(false);
+
+      void Promise.all(
         baseAppointments.map(async (item) => {
           try {
             const details = await getAppointmentDetailsById(token, item.appointmentId);
             return {
-              ...item,
+              appointmentId: item.appointmentId,
               patientSymptoms: details?.reason || '',
               patientDetails: details?.notes || '',
             };
           } catch {
             return {
-              ...item,
+              appointmentId: item.appointmentId,
               patientSymptoms: '',
               patientDetails: '',
             };
           }
         }),
-      );
-      setAppointments(enrichedAppointments);
+      ).then((enrichedRows) => {
+        const byAppointmentId = new Map(enrichedRows.map((row) => [row.appointmentId, row]));
+        setAppointments((prev) => prev.map((item) => {
+          const extra = byAppointmentId.get(item.appointmentId);
+          return extra
+            ? { ...item, patientSymptoms: extra.patientSymptoms, patientDetails: extra.patientDetails }
+            : item;
+        }));
+      });
     } catch (err) {
       setError(err.message || 'Failed to fetch appointment requests');
     } finally {
@@ -67,6 +125,14 @@ export default function DoctorAppointments() {
     }
   }, [loadAppointments, token]);
 
+  useEffect(() => {
+    if (!token) return undefined;
+    const intervalId = window.setInterval(() => {
+      loadAppointments();
+    }, 12000);
+    return () => window.clearInterval(intervalId);
+  }, [token, loadAppointments]);
+
   const openDecisionModal = (appointmentId, status) => {
     setDoctorNotes('');
     const appointment = appointments.find((a) => a.appointmentId === appointmentId || a.id === appointmentId);
@@ -79,10 +145,12 @@ export default function DoctorAppointments() {
   const handleAppointmentDecision = async () => {
     if (!notesModal) return;
     const { appointmentId, status } = notesModal;
+    const previousAppointments = appointments;
     setError('');
     setNotesModal(null);
     try {
       const payload = { status, doctorNotes };
+      let optimisticScheduledAt = null;
       if (status === 'ACCEPTED') {
         const start = new Date(scheduledStartLocal);
         if (Number.isNaN(start.getTime())) {
@@ -94,10 +162,28 @@ export default function DoctorAppointments() {
         payload.scheduledStartAt = start.toISOString();
         payload.durationMinutes = Number(durationMinutes) || 60;
         payload.regenerateLink = regenerateLink;
+        optimisticScheduledAt = payload.scheduledStartAt;
       }
+
+      // Optimistically move the appointment to its destination section immediately.
+      setAppointments((prev) => prev.map((item) => {
+        if (String(item.appointmentId) !== String(appointmentId)) return item;
+        return {
+          ...item,
+          status,
+          doctorNotes: doctorNotes || item.doctorNotes,
+          ...(optimisticScheduledAt ? { scheduledAt: optimisticScheduledAt } : {}),
+        };
+      }));
+
       await decideAppointment(token, appointmentId, payload);
       await loadAppointments();
+      // Follow-up refresh to capture eventual backend sync from dependent services.
+      window.setTimeout(() => {
+        loadAppointments();
+      }, 1200);
     } catch (err) {
+      setAppointments(previousAppointments);
       setError(err.message || 'Failed to update appointment decision');
     }
   };
@@ -126,6 +212,94 @@ export default function DoctorAppointments() {
       setError(err.message || 'Failed to complete appointment');
     } finally {
       setCompletingId(null);
+    }
+  };
+
+  const handleOpenTelemedicineForAppointment = (item) => {
+    navigate(`/telemedicine?appointmentId=${item.appointmentId}`);
+  };
+
+  const handleIssuePrescriptionForAppointment = (item) => {
+    const params = new URLSearchParams();
+    params.set('appointmentId', String(item.appointmentId));
+    if (item?.patientEmail) params.set('patientEmail', item.patientEmail);
+    if (item?.patientSymptoms) params.set('diagnosis', item.patientSymptoms);
+    navigate(`/doctor-prescriptions?${params.toString()}`);
+  };
+
+  const handleOpenReports = async (item) => {
+    setReportsModal({ appointmentId: item.appointmentId, patientEmail: item.patientEmail });
+    setLoadingReports(true);
+    setReportsError('');
+    setReportRows([]);
+    try {
+      const rows = await getAppointmentPatientReports(token, item.appointmentId);
+      setReportRows(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      try {
+        if (!item?.patientEmail) {
+          throw err;
+        }
+        const fallbackRows = await getPatientReportsByEmailFallback(item.patientEmail);
+        setReportRows(Array.isArray(fallbackRows) ? fallbackRows : []);
+      } catch {
+        setReportsError(err.message || 'Failed to load reports');
+      }
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  const handleDownloadReport = async (row) => {
+    const fileName = row?.storedFileName || row?.stored_file_name;
+    const originalName = row?.originalFileName || row?.original_file_name || fileName;
+    if (!fileName) {
+      setReportsError('Selected report does not include a downloadable file name');
+      return;
+    }
+    setDownloadingFileName(fileName);
+    setReportsError('');
+    try {
+      await downloadReportSecurely(token, fileName, originalName);
+    } catch (err) {
+      setReportsError(err.message || 'Failed to download report');
+    } finally {
+      setDownloadingFileName('');
+    }
+  };
+
+  const closeReportPreview = () => {
+    if (reportPreview?.url) {
+      window.URL.revokeObjectURL(reportPreview.url);
+    }
+    setReportPreview(null);
+  };
+
+  const handlePreviewReport = async (row) => {
+    const fileName = row?.storedFileName || row?.stored_file_name;
+    const originalName = row?.originalFileName || row?.original_file_name || fileName;
+    if (!fileName) {
+      setReportsError('Selected report does not include a previewable file name');
+      return;
+    }
+    setPreviewingFileName(fileName);
+    setReportsError('');
+    try {
+      const blob = await fetchReportBlobSecurely(token, fileName);
+      const previewUrl = window.URL.createObjectURL(blob);
+      if (reportPreview?.url) {
+        window.URL.revokeObjectURL(reportPreview.url);
+      }
+      setReportPreview({
+        fileName,
+        originalName,
+        url: previewUrl,
+        mimeType: blob.type || 'application/octet-stream',
+      });
+    } catch (err) {
+      setReportsError(err.message || 'Failed to preview report');
+    } finally {
+      setPreviewingFileName('');
     }
   };
 
@@ -223,12 +397,41 @@ export default function DoctorAppointments() {
       {(item.status === 'ACCEPTED' || item.status === 'APPROVED') && (
         <div className="flex flex-wrap gap-2 mt-4 w-full">
           <button
+            onClick={() => handleOpenTelemedicineForAppointment(item)}
+            className="inline-flex items-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Video className="mr-1" size={16} /> Open Telemedicine
+          </button>
+          <button
+            onClick={() => handleOpenReports(item)}
+            className="inline-flex items-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <FileText className="mr-1" size={16} /> View Reports
+          </button>
+          <button
+            onClick={() => handleIssuePrescriptionForAppointment(item)}
+            className="inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Pill className="mr-1" size={16} /> Issue Prescription
+          </button>
+          <button
             onClick={() => handleCompleteAppointment(item.appointmentId)}
             disabled={completingId === item.appointmentId}
             className="inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold px-4 py-2 rounded-xl transition-colors cursor-pointer"
           >
             <ClipboardCheck className="mr-1" size={16} />
             {completingId === item.appointmentId ? 'Completing…' : 'Mark as Completed'}
+          </button>
+        </div>
+      )}
+
+      {item.status === 'COMPLETED' && (
+        <div className="flex flex-wrap gap-2 mt-4 w-full">
+          <button
+            onClick={() => handleIssuePrescriptionForAppointment(item)}
+            className="inline-flex items-center bg-violet-600 hover:bg-violet-700 text-white font-semibold px-4 py-2 rounded-xl transition-colors"
+          >
+            <Pill className="mr-1" size={16} /> Issue Prescription
           </button>
         </div>
       )}
@@ -386,6 +589,136 @@ export default function DoctorAppointments() {
               >
                 Confirm {notesModal.status === 'ACCEPTED' ? 'Accept' : 'Reject'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {reportsModal && (
+        <div className="fixed inset-0 z-[120] bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Patient Uploaded Reports</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Appointment #{reportsModal.appointmentId} • {reportsModal.patientEmail}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  closeReportPreview();
+                  setReportsModal(null);
+                  setReportRows([]);
+                  setReportsError('');
+                }}
+                className="p-2 rounded-lg hover:bg-gray-100"
+                aria-label="Close reports"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 max-h-[70vh] overflow-y-auto">
+              {loadingReports && <p className="text-sm text-gray-600">Loading reports...</p>}
+              {reportsError && (
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{reportsError}</p>
+              )}
+              {!loadingReports && !reportsError && reportRows.length === 0 && (
+                <p className="text-sm text-gray-600">No reports have been uploaded yet for this patient.</p>
+              )}
+
+              {!loadingReports && reportRows.length > 0 && (
+                <ul className="space-y-2">
+                  {reportRows.map((row, idx) => {
+                    const key = row?.id || `${row?.storedFileName || row?.stored_file_name || 'row'}-${idx}`;
+                    const originalName = row?.originalFileName || row?.original_file_name || 'Report file';
+                    const uploadedAt = row?.uploadDate || row?.upload_date;
+                    const storedFileName = row?.storedFileName || row?.stored_file_name;
+                    return (
+                      <li key={key} className="border border-gray-200 rounded-xl p-3 bg-gray-50/60">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-gray-900 break-all">{originalName}</p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {uploadedAt ? new Date(uploadedAt).toLocaleString() : 'Upload time unavailable'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              disabled={!storedFileName || previewingFileName === storedFileName}
+                              onClick={() => handlePreviewReport(row)}
+                              className="inline-flex items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100 disabled:bg-cyan-50 disabled:text-cyan-300"
+                            >
+                              <Eye className="mr-1.5" size={15} />
+                              {previewingFileName === storedFileName ? 'Opening...' : 'View'}
+                            </button>
+                            <button
+                              type="button"
+                              disabled={!storedFileName || downloadingFileName === storedFileName}
+                              onClick={() => handleDownloadReport(row)}
+                              className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:bg-indigo-300"
+                            >
+                              <Download className="mr-1.5" size={15} />
+                              {downloadingFileName === storedFileName ? 'Downloading...' : 'Download'}
+                            </button>
+                          </div>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {reportPreview && (
+                <div className="rounded-2xl border border-cyan-100 bg-cyan-50/50 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Previewing {reportPreview.originalName}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{reportPreview.mimeType || 'Unknown file type'}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <a
+                        href={reportPreview.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-50"
+                      >
+                        <ExternalLink className="mr-1.5" size={15} /> Open in New Tab
+                      </a>
+                      <button
+                        type="button"
+                        onClick={closeReportPreview}
+                        className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                      >
+                        Close Preview
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                    {reportPreview.mimeType.startsWith('image/') ? (
+                      <div className="max-h-[60vh] overflow-auto bg-gray-50 p-4">
+                        <img src={reportPreview.url} alt={reportPreview.originalName} className="mx-auto max-h-[55vh] rounded-xl object-contain shadow-sm" />
+                      </div>
+                    ) : reportPreview.mimeType === 'application/pdf' ? (
+                      <iframe title={reportPreview.originalName} src={reportPreview.url} className="h-[60vh] w-full" />
+                    ) : (
+                      <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 px-6 py-10 text-center text-sm text-gray-600">
+                        <p>Inline preview is not supported for this file type.</p>
+                        <a
+                          href={reportPreview.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 font-semibold text-white hover:bg-indigo-700"
+                        >
+                          <ExternalLink className="mr-1.5" size={15} /> Open File
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

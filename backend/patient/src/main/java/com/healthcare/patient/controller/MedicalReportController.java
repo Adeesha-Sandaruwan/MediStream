@@ -36,6 +36,14 @@ public class MedicalReportController {
         return ResponseEntity.ok(medicalReportService.getPatientReports(email));
     }
 
+    /**
+     * Internal service-to-service endpoint used by doctor service.
+     */
+    @GetMapping("/internal/by-email")
+    public ResponseEntity<List<MedicalReport>> getReportsByPatientEmail(@RequestParam String patientEmail) {
+        return ResponseEntity.ok(medicalReportService.getPatientReports(patientEmail));
+    }
+
     @GetMapping("/download/{fileName:.+}")
     public ResponseEntity<Resource> downloadFile(@PathVariable String fileName, HttpServletRequest request) {
         Resource resource = fileStorageService.loadFileAsResource(fileName);

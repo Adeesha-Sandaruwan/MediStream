@@ -64,6 +64,21 @@ export const uploadMedicalReport = async (token, file) => {
 };
 
 export const downloadReportSecurely = async (token, fileName, originalName) => {
+    const blob = await fetchReportBlobSecurely(token, fileName);
+
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+
+    link.download = originalName || fileName; 
+
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(downloadUrl);
+};
+
+export const fetchReportBlobSecurely = async (token, fileName) => {
     const response = await fetch(`${API_URL}/reports/download/${fileName}`, {
         method: 'GET',
         headers: {
@@ -71,19 +86,7 @@ export const downloadReportSecurely = async (token, fileName, originalName) => {
         }
     });
     if (!response.ok) throw new Error('Failed to download file');
-    
-    const blob = await response.blob();
-    
-    const downloadUrl = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    
-    link.download = originalName || fileName; 
-    
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(downloadUrl);
+    return response.blob();
 };
 
 export const getAllPatients = async (token) => {

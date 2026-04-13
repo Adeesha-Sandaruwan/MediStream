@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/doctors/appointments")
@@ -67,5 +68,15 @@ public class DoctorAppointmentController {
             @PathVariable Long appointmentId
     ) {
         return ResponseEntity.ok(doctorAppointmentService.completeAppointment(authentication.getName(), appointmentId));
+    }
+
+    @GetMapping("/{appointmentId}/reports")
+    public ResponseEntity<List<Map<String, Object>>> getPatientReportsForAppointment(
+            Authentication authentication,
+            @PathVariable Long appointmentId
+    ) {
+        return ResponseEntity.ok(
+                doctorAppointmentService.getPatientReportsForAppointment(authentication.getName(), appointmentId)
+        );
     }
 }

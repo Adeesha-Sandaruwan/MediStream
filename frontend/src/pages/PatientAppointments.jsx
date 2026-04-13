@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
@@ -27,41 +27,48 @@ export default function PatientAppointments() {
   const [error, setError] = useState('');
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedAppointmentForPayment, setSelectedAppointmentForPayment] = useState(null);
-  const [paymentJustCompleted, setPaymentJustCompleted] = useState(false);
+
+  const loadAppointments = useCallback(async () => {
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const [patientProfile, allDoctors] = await Promise.all([
+        getMyPatientProfile(token),
+        getAllVerifiedDoctors(token).catch(() => []),
+      ]);
+      setPatientId(patientProfile.id);
+      setDoctors(allDoctors);
+
+      const response = await axios.get(`${API_BASE_URL}/patient/${patientProfile.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const sorted = [...response.data].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
+      setAppointments(sorted);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load your appointments. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);
 
   useEffect(() => {
-    const loadAppointments = async () => {
-      setIsLoading(true);
-      setError('');
-
-      try {
-        const [patientProfile, allDoctors] = await Promise.all([
-          getMyPatientProfile(token),
-          getAllVerifiedDoctors(token).catch(() => []),
-        ]);
-        setPatientId(patientProfile.id);
-        setDoctors(allDoctors);
-
-        const response = await axios.get(`${API_BASE_URL}/patient/${patientProfile.id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        const sorted = [...response.data].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
-        setAppointments(sorted);
-      } catch (err) {
-        console.error(err);
-        setError('Failed to load your appointments. Please try again later.');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     if (token) {
       loadAppointments();
     }
-  }, [token]);
+  }, [token, loadAppointments]);
+
+  useEffect(() => {
+    if (!token) return undefined;
+    const intervalId = window.setInterval(() => {
+      loadAppointments();
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, [token, loadAppointments]);
 
   const getDoctorInfo = (appointment) => {
     const doctorId = appointment?.doctorId;
@@ -301,12 +308,9 @@ export default function PatientAppointments() {
             onClose={() => {
               setPaymentModalOpen(false);
               setSelectedAppointmentForPayment(null);
-              // Only reload if payment was NOT just completed (to avoid overwriting
-              // the optimistic local-state update we already applied in onSuccess).
-              if (!paymentJustCompleted && token) {
-                window.location.reload();
+              if (token) {
+                loadAppointments();
               }
-              setPaymentJustCompleted(false);
             }}
             appointmentId={selectedAppointmentForPayment.id}
             patientId={patientId}
@@ -321,17 +325,17 @@ export default function PatientAppointments() {
                   `Please save that reference and contact support if your appointment is not confirmed shortly.`
                 );
               } else {
-                // Full success — mark payment as completed locally so badge updates immediately.
+                // Full success — reload from backend as source of truth (no frontend-only approval state).
                 setAppointments((prev) => prev.map((item) => (
                   item.id === selectedAppointmentForPayment.id
-                    ? { ...item, paymentStatus: 'COMPLETED', status: 'APPROVED' }
+                    ? { ...item, paymentStatus: 'COMPLETED', status: 'PENDING' }
                     : item
                 )));
-                setNotice(`Payment successful! Your appointment #${selectedAppointmentForPayment.id} has been paid. Awaiting admin approval.`);
+                setNotice(`Payment successful! Your appointment #${selectedAppointmentForPayment.id} is now awaiting doctor approval.`);
               }
-              setPaymentJustCompleted(true);
               setPaymentModalOpen(false);
               setSelectedAppointmentForPayment(null);
+              loadAppointments();
             }}
           />
         );
