@@ -40,6 +40,8 @@ const AdminTransactionMonitor = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dateRangeFilter, setDateRangeFilter] = useState('LAST_30_DAYS');
+  const [transactionPage, setTransactionPage] = useState(1);
+  const transactionPageSize = 10;
   const [patientInfoById, setPatientInfoById] = useState({});
   const [doctorInfoById, setDoctorInfoById] = useState({});
 
@@ -257,6 +259,22 @@ const AdminTransactionMonitor = () => {
 
     setFilteredTransactions(filtered);
   }, [searchQuery, statusFilter, dateRangeFilter, transactions, patientInfoById, doctorInfoById, getEntityInfo]);
+
+  useEffect(() => {
+    setTransactionPage(1);
+  }, [searchQuery, statusFilter, dateRangeFilter, activeTab]);
+
+  const totalTransactionPages = Math.max(1, Math.ceil(filteredTransactions.length / transactionPageSize));
+  const paginatedTransactions = filteredTransactions.slice(
+    (transactionPage - 1) * transactionPageSize,
+    transactionPage * transactionPageSize
+  );
+
+  useEffect(() => {
+    if (transactionPage > totalTransactionPages) {
+      setTransactionPage(totalTransactionPages);
+    }
+  }, [transactionPage, totalTransactionPages]);
 
   const formatCurrency = (amount) => {
     if (!amount) return 'Rs. 0.00';
@@ -531,7 +549,7 @@ const AdminTransactionMonitor = () => {
           ) : (
             <>
             <div className="md:hidden space-y-3">
-              {filteredTransactions.map((tx) => {
+              {paginatedTransactions.map((tx) => {
                 const patient = getEntityInfo(tx.patientId, 'PATIENT');
                 const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
 
@@ -610,7 +628,7 @@ const AdminTransactionMonitor = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((tx) => {
+                  {paginatedTransactions.map((tx) => {
                     const patient = getEntityInfo(tx.patientId, 'PATIENT');
                     const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
 
@@ -648,6 +666,29 @@ const AdminTransactionMonitor = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 flex-wrap border-t border-gray-100 pt-4">
+              <p className="text-sm text-gray-600">
+                Showing {(transactionPage - 1) * transactionPageSize + 1} - {Math.min(transactionPage * transactionPageSize, filteredTransactions.length)} of {filteredTransactions.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTransactionPage((prev) => Math.max(1, prev - 1))}
+                  disabled={transactionPage === 1}
+                  className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-semibold text-gray-700 px-2">Page {transactionPage} / {totalTransactionPages}</span>
+                <button
+                  onClick={() => setTransactionPage((prev) => Math.min(totalTransactionPages, prev + 1))}
+                  disabled={transactionPage === totalTransactionPages}
+                  className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
             </div>
             </>
           )}

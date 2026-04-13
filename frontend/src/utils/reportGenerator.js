@@ -511,7 +511,7 @@ export const generateDoctorPayoutReport = (transactions, doctorInfoById = {}, se
 
   yPosition += 8;
 
-  const headers = ['No.', 'Doctor ID', 'Doctor Name', 'Doctor Email', 'Completed Appointments', 'Total Earnings (LKR)', 'Paid Out Amount (LKR)'];
+  const headers = ['No.', 'Doctor ID', 'Doctor Name', 'Doctor Email', 'Completed Appts', 'Earnings (LKR)', 'Paid Out (LKR)'];
   const colWidths = [10, 16, 36, 36, 22, 30, 30];
   const rowHeight = 7;
   const tableWidth = colWidths.reduce((sum, width) => sum + width, 0);
@@ -519,7 +519,7 @@ export const generateDoctorPayoutReport = (transactions, doctorInfoById = {}, se
   pdf.setFillColor(234, 88, 12);
   pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
   pdf.setTextColor(255, 255, 255);
-  pdf.setFontSize(9);
+  pdf.setFontSize(8);
   pdf.setFont(undefined, 'bold');
 
   let xPos = margin;
@@ -542,7 +542,7 @@ export const generateDoctorPayoutReport = (transactions, doctorInfoById = {}, se
       pdf.setFillColor(234, 88, 12);
       pdf.rect(margin, yPosition, tableWidth, rowHeight, 'F');
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(9);
+      pdf.setFontSize(8);
       pdf.setFont(undefined, 'bold');
 
       xPos = margin;
