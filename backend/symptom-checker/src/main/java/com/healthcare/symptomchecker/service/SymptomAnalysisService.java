@@ -25,7 +25,9 @@ import java.util.Set;
 public class SymptomAnalysisService {
 
     private static final Logger logger = LoggerFactory.getLogger(SymptomAnalysisService.class);
+    // Used whenever model output omits the disclaimer field.
     private static final String DEFAULT_DISCLAIMER = "This is a preliminary guidance tool only and not a medical diagnosis. Consult a licensed doctor for clinical decisions.";
+    // Shared timeout for Gemini API connection and request processing.
     private static final Duration API_TIMEOUT = Duration.ofSeconds(30);
 
     private final HttpClient httpClient;
@@ -40,6 +42,7 @@ public class SymptomAnalysisService {
             @Value("${ai.gemini.model:gemini-flash-latest}") String geminiModel,
             @Value("${ai.gemini.base-url:https://generativelanguage.googleapis.com/v1beta/models}") String geminiBaseUrl
     ) {
+        // Create one reusable HTTP client instead of allocating a new client per request.
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(API_TIMEOUT)
                 .build();
@@ -49,6 +52,8 @@ public class SymptomAnalysisService {
         this.geminiBaseUrl = geminiBaseUrl;
     }
 
+    // Entry point used by the controller.
+    // Attempts AI analysis first and safely falls back to rule-based triage when unavailable.
     public SymptomAnalysisResponse analyze(SymptomAnalysisRequest request) {
         if (geminiApiKey == null || geminiApiKey.isBlank()) {
             logger.warn("Gemini API key not configured. Using fallback analysis.");
@@ -56,6 +61,7 @@ public class SymptomAnalysisService {
         }
 
         try {
+            // Log only a short prefix to avoid dumping full patient symptom text.
             logger.debug("Analyzing symptoms via Gemini API: {}", request.symptoms().substring(0, Math.min(50, request.symptoms().length())));
             long startTime = System.currentTimeMillis();
             SymptomAnalysisResponse response = callGemini(request);
@@ -63,20 +69,24 @@ public class SymptomAnalysisService {
             logger.info("Gemini analysis completed in {}ms", duration);
             return response;
         } catch (Exception e) {
+            // Any network, auth, quota, or parsing failure should still return useful guidance.
             logger.warn("Gemini API failed: {}. Using fallback analysis.", e.getMessage());
             return fallbackAnalysis(request);
         }
     }
 
+    // Calls Gemini's generateContent endpoint and parses the returned structured output.
     private SymptomAnalysisResponse callGemini(SymptomAnalysisRequest request) throws IOException, InterruptedException {
         String prompt = buildPrompt(request);
 
+        // Gemini payload format: contents[].parts[].text contains the prompt.
         JsonNode payload = objectMapper.createObjectNode()
                 .set("contents", objectMapper.createArrayNode()
                         .add(objectMapper.createObjectNode()
                                 .set("parts", objectMapper.createArrayNode()
                                         .add(objectMapper.createObjectNode().put("text", prompt)))));
 
+        // Ask Gemini to produce deterministic, JSON-compatible output.
         ((com.fasterxml.jackson.databind.node.ObjectNode) payload)
                 .set("generationConfig", objectMapper.createObjectNode()
                         .put("temperature", 0.3)
@@ -98,6 +108,7 @@ public class SymptomAnalysisService {
         HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
 
         if (response.statusCode() != 200) {
+            // Include response body for easier diagnosis (invalid key, quota exceeded, etc.).
             logger.error("Gemini API error: HTTP {}. URL: {}. Response body: {}", 
                 response.statusCode(), 
                 url, 
@@ -108,15 +119,18 @@ public class SymptomAnalysisService {
         return parseGeminiResponse(response.body());
     }
 
+    // Parses Gemini wrapper JSON and then parses the model-generated JSON payload.
     private SymptomAnalysisResponse parseGeminiResponse(String responseBody) throws IOException {
         try {
             JsonNode root = objectMapper.readTree(responseBody);
+            // Expected path from Gemini response schema.
             String modelText = root.path("candidates").path(0).path("content").path("parts").path(0).path("text").asText();
             
             if (modelText == null || modelText.isBlank()) {
                 throw new IllegalStateException("Gemini returned empty content");
             }
 
+            // Some models wrap JSON inside markdown code fences; strip before parsing.
             JsonNode modelJson = objectMapper.readTree(stripCodeFence(modelText));
 
             String urgency = normalizeUrgency(modelJson.path("urgencyLevel").asText("LOW"));
@@ -135,11 +149,14 @@ public class SymptomAnalysisService {
             logger.debug("Parsed response - Urgency: {}, Suggestions: {}, Specialties: {}", urgency, suggestions.size(), specialties.size());
             return new SymptomAnalysisResponse(urgency, suggestions, specialties, disclaimer);
         } catch (Exception e) {
+            // Propagate as IOException so caller can trigger fallback path.
             logger.error("Failed to parse Gemini response: {}", e.getMessage(), e);
             throw new IOException("Failed to parse Gemini response", e);
         }
     }
 
+    // Builds an instruction-rich prompt that enforces JSON-only output,
+    // urgency mapping, specialty mapping, and context-aware suggestions.
     private String buildPrompt(SymptomAnalysisRequest request) {
         String gender = request.gender() == null || request.gender().isBlank() ? "Not specified" : request.gender();
         String history = request.medicalHistory() == null || request.medicalHistory().isBlank() ? "None" : request.medicalHistory();
@@ -202,6 +219,7 @@ public class SymptomAnalysisService {
                 """.formatted(age, gender, history, request.symptoms());
     }
 
+    // Removes leading/trailing markdown fences (```json ... ```), if present.
     private String stripCodeFence(String text) {
         String trimmed = text.trim();
         if (trimmed.startsWith("```") && trimmed.endsWith("```")) {
@@ -213,6 +231,7 @@ public class SymptomAnalysisService {
         return trimmed;
     }
 
+    // Keeps urgency constrained to the API contract values.
     private String normalizeUrgency(String urgency) {
         String normalized = urgency == null ? "LOW" : urgency.trim().toUpperCase(Locale.ROOT);
         if (!Set.of("LOW", "MODERATE", "HIGH").contains(normalized)) {
@@ -221,6 +240,7 @@ public class SymptomAnalysisService {
         return normalized;
     }
 
+    // Converts a JSON array node to a list of non-empty strings.
     private List<String> readStringArray(JsonNode node) {
         List<String> values = new ArrayList<>();
         if (node == null || !node.isArray()) {
@@ -238,6 +258,7 @@ public class SymptomAnalysisService {
         return values;
     }
 
+    // Local rule-based fallback when AI service is unavailable.
     private SymptomAnalysisResponse fallbackAnalysis(SymptomAnalysisRequest request) {
         String text = normalize(request.symptoms(), request.medicalHistory());
 
@@ -253,11 +274,13 @@ public class SymptomAnalysisService {
         );
     }
 
+    // Normalizes free-text input for keyword matching by lowercasing symptoms + history.
     private String normalize(String symptoms, String history) {
         String fullText = (symptoms == null ? "" : symptoms) + " " + (history == null ? "" : history);
         return fullText.toLowerCase(Locale.ROOT);
     }
 
+    // Urgency heuristic based on emergency and severe-symptom keywords.
     private String inferUrgency(String text) {
         if (containsAny(text, "chest pain", "shortness of breath", "fainting", "unconscious", "stroke", "seizure")) {
             return "HIGH";
@@ -270,6 +293,8 @@ public class SymptomAnalysisService {
         return "LOW";
     }
 
+    // Maps symptom keywords to likely specialties.
+    // LinkedHashSet keeps insertion order so earlier matches remain prioritized.
     private Set<String> inferSpecialties(String text) {
         Set<String> specialties = new LinkedHashSet<>();
 
@@ -308,6 +333,7 @@ public class SymptomAnalysisService {
         return specialties;
     }
 
+    // Produces practical self-care and escalation suggestions based on urgency and symptom context.
     private List<String> inferSuggestions(String text, String urgencyLevel) {
         List<String> suggestions = new ArrayList<>();
 
@@ -335,6 +361,7 @@ public class SymptomAnalysisService {
         return suggestions;
     }
 
+    // Returns true if any keyword appears in the normalized text.
     private boolean containsAny(String text, String... keywords) {
         for (String keyword : keywords) {
             if (text.contains(keyword)) {
