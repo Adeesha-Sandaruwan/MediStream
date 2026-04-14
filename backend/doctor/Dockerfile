@@ -1,8 +1,8 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM maven:3.9.9-eclipse-temurin-21 AS build
 WORKDIR /app
 
 COPY . .
-RUN chmod +x mvnw && ./mvnw -DskipTests clean package
+RUN mvn -DskipTests clean package
 RUN JAR_FILE=$(ls target/*.jar | grep -v 'original' | head -n 1) && cp "$JAR_FILE" app.jar
 
 FROM eclipse-temurin:21-jre

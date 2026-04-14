@@ -663,7 +663,7 @@ public class DoctorAppointmentService {
         doctorAppointmentRequestRepository.save(request);
 
         String endpoint = UriComponentsBuilder
-                .fromHttpUrl(patientServiceUrl + "/api/patients/reports/internal/by-email")
+            .fromUriString(patientServiceUrl + "/api/patients/reports/internal/by-email")
                 .queryParam("patientEmail", patientEmail)
                 .toUriString();
 
