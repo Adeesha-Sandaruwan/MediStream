@@ -13,6 +13,8 @@ const AdminDashboard = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('users');
+    const [userPage, setUserPage] = useState(1);
+    const userPageSize = 10;
     
     const [showModal, setShowModal] = useState(false);
     const [isActionLoading, setIsActionLoading] = useState(false);
@@ -23,9 +25,22 @@ const AdminDashboard = () => {
         role: 'PATIENT'
     });
 
+    const totalUserPages = Math.max(1, Math.ceil(users.length / userPageSize));
+    const paginatedUsers = users.slice((userPage - 1) * userPageSize, userPage * userPageSize);
+
     useEffect(() => {
         fetchDashboardData();
     }, [token]);
+
+    useEffect(() => {
+        setUserPage(1);
+    }, [users.length, activeTab]);
+
+    useEffect(() => {
+        if (userPage > totalUserPages) {
+            setUserPage(totalUserPages);
+        }
+    }, [userPage, totalUserPages]);
 
     const fetchDashboardData = async () => {
         setIsLoading(true);
@@ -232,9 +247,9 @@ const AdminDashboard = () => {
     }, [users, patientRecords]);
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 relative min-h-screen">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10">
-                <h1 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-blue-700 flex items-center">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-12 relative min-h-screen">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-8 sm:mb-10">
+                <h1 className="text-2xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-900 to-blue-700 flex items-center">
                     <ShieldAlert className="mr-3 text-indigo-600 shrink-0" size={36} />
                     Platform Admin
                 </h1>
@@ -249,7 +264,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Tab Navigation */}
-            <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1 flex gap-1 mb-8 overflow-x-auto">
+            <div className="bg-white border border-gray-200 rounded-xl shadow-lg p-1 grid grid-cols-1 sm:grid-cols-2 gap-1 mb-6 sm:mb-8">
                 {[
                     { id: 'users', label: 'User Management', icon: Users },
                     { id: 'transactions', label: 'Payment Transactions', icon: DollarSign },
@@ -259,7 +274,7 @@ const AdminDashboard = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
                                 activeTab === tab.id
                                     ? 'bg-indigo-600 text-white shadow-md'
                                     : 'text-gray-700 hover:bg-gray-50'
@@ -413,7 +428,62 @@ const AdminDashboard = () => {
                 <div className="p-6 border-b border-gray-100 bg-gray-50/50">
                     <h2 className="text-xl font-extrabold text-gray-900">User Directory</h2>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="md:hidden p-4 space-y-3">
+                    {isLoading ? (
+                        <div className="p-10 text-center text-indigo-400"><Loader2 className="animate-spin mx-auto" size={32} /></div>
+                    ) : paginatedUsers.map((user) => (
+                        <div key={user.id} className="rounded-2xl border border-gray-200 p-4 bg-white shadow-sm">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="font-bold text-gray-900 break-all">{user.email}</p>
+                                    <p className="text-xs text-gray-500 mt-1">ID: {user.id}</p>
+                                </div>
+                                <span className={`px-3 py-1 rounded-lg text-[11px] font-black tracking-wide border ${
+                                    user.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                                    user.role === 'DOCTOR' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                    'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                }`}>
+                                    {user.role}
+                                </span>
+                            </div>
+
+                            <div className="mt-3">
+                                {user.role === 'DOCTOR' ? (
+                                    <div className="flex items-center bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                                        {getStatusIcon(user.verificationStatus || 'PENDING')}
+                                        <select
+                                            value={user.verificationStatus || 'PENDING'}
+                                            onChange={(e) => handleStatusChange(user.id, e.target.value)}
+                                            className="text-xs font-bold bg-transparent outline-none cursor-pointer text-gray-700 ml-1 w-full"
+                                        >
+                                            <option value="PENDING">PENDING</option><option value="APPROVED">APPROVED</option><option value="REJECTED">REJECTED</option><option value="SUSPENDED">SUSPENDED</option>
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <span className="inline-flex items-center text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                                        <CheckCircle size={16} className="mr-2 text-emerald-500" /> ACTIVE
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="mt-3 flex items-center justify-end space-x-2">
+                                <button
+                                    onClick={() => handleAuditUser(user.email, user.role)}
+                                    className="p-2.5 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-all active:scale-95"
+                                >
+                                    <Eye size={18} />
+                                </button>
+                                <button
+                                    onClick={() => handleDeleteUser(user.id)}
+                                    className="p-2.5 text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all active:scale-95"
+                                >
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[600px]">
                         <thead className="bg-gray-50/80 text-gray-500 text-xs font-black uppercase tracking-widest border-b border-gray-100">
                             <tr>
@@ -426,7 +496,7 @@ const AdminDashboard = () => {
                         <tbody className="divide-y divide-gray-50">
                             {isLoading ? (
                                 <tr><td colSpan="4" className="p-16 text-center text-indigo-400"><Loader2 className="animate-spin mx-auto" size={32} /></td></tr>
-                            ) : users.map((user) => (
+                            ) : paginatedUsers.map((user) => (
                                 <tr key={user.id} className="hover:bg-indigo-50/30 transition-colors duration-200 group">
                                     <td className="p-5">
                                         <div className="font-bold text-gray-900">{user.email}</div>
@@ -484,6 +554,31 @@ const AdminDashboard = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {!isLoading && users.length > 0 && (
+                    <div className="border-t border-gray-100 px-4 sm:px-6 py-4 flex items-center justify-between gap-3 flex-wrap bg-white">
+                        <p className="text-sm text-gray-600">
+                            Showing {(userPage - 1) * userPageSize + 1} - {Math.min(userPage * userPageSize, users.length)} of {users.length}
+                        </p>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setUserPage((prev) => Math.max(1, prev - 1))}
+                                disabled={userPage === 1}
+                                className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm font-semibold text-gray-700 px-2">Page {userPage} / {totalUserPages}</span>
+                            <button
+                                onClick={() => setUserPage((prev) => Math.min(totalUserPages, prev + 1))}
+                                disabled={userPage === totalUserPages}
+                                className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
                 </>
             )}

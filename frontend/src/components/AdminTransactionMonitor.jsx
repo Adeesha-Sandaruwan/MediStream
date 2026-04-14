@@ -7,6 +7,7 @@ import {
   AlertCircle,
   Loader2,
   Search,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -16,12 +17,19 @@ import {
 import { getAllUsers } from '../api/adminApi';
 import { getAllPatients } from '../api/patientApi';
 import { getAllDoctors } from '../api/doctorApi';
+import {
+  generateDoctorPayoutReport,
+  generateMonthlyRevenueReport,
+} from '../utils/reportGenerator';
 
 const AdminTransactionMonitor = () => {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingDoctorPDF, setIsGeneratingDoctorPDF] = useState(false);
   const [error, setError] = useState('');
+  const [doctorReportDateRange, setDoctorReportDateRange] = useState('LAST_30_DAYS');
 
   // Overview tab state
   const [metrics, setMetrics] = useState(null);
@@ -32,16 +40,136 @@ const AdminTransactionMonitor = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [dateRangeFilter, setDateRangeFilter] = useState('LAST_30_DAYS');
-  const [patientNameById, setPatientNameById] = useState({});
-  const [doctorNameById, setDoctorNameById] = useState({});
+  const [transactionPage, setTransactionPage] = useState(1);
+  const transactionPageSize = 10;
+  const [patientInfoById, setPatientInfoById] = useState({});
+  const [doctorInfoById, setDoctorInfoById] = useState({});
+
+  const getFullName = useCallback((profile, isDoctor = false) => {
+    const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
+    if (!fullName) return '';
+    return isDoctor ? `Dr. ${fullName}` : fullName;
+  }, []);
+
+  const buildIdentityLookups = useCallback((users = [], patients = [], doctors = []) => {
+    const usersById = users.reduce((acc, user) => {
+      if (user?.id != null) {
+        acc[String(user.id)] = user;
+      }
+      return acc;
+    }, {});
+
+    const patientProfilesByEmail = patients.reduce((acc, profile) => {
+      const email = profile?.email?.toLowerCase();
+      if (email) {
+        acc[email] = profile;
+      }
+      return acc;
+    }, {});
+
+    const doctorProfilesByEmail = doctors.reduce((acc, profile) => {
+      const email = profile?.email?.toLowerCase();
+      if (email) {
+        acc[email] = profile;
+      }
+      return acc;
+    }, {});
+
+    const patientProfilesById = patients.reduce((acc, profile) => {
+      if (profile?.id != null) {
+        acc[String(profile.id)] = profile;
+      }
+      return acc;
+    }, {});
+
+    const doctorProfilesById = doctors.reduce((acc, profile) => {
+      if (profile?.id != null) {
+        acc[String(profile.id)] = profile;
+      }
+      return acc;
+    }, {});
+
+    const buildInfo = (entityId, role) => {
+      const idKey = String(entityId);
+      const user = usersById[idKey];
+      const userEmail = user?.email?.toLowerCase();
+      const profileById = role === 'PATIENT' ? patientProfilesById[idKey] : doctorProfilesById[idKey];
+      const profileByEmail = userEmail
+        ? (role === 'PATIENT' ? patientProfilesByEmail[userEmail] : doctorProfilesByEmail[userEmail])
+        : null;
+
+      const profile = profileByEmail || profileById;
+      const fallbackEmail = profile?.email || user?.email || 'N/A';
+      const name = profile ? getFullName(profile, role === 'DOCTOR') : '';
+
+      return {
+        entityId: entityId ?? 'N/A',
+        profileId: profile?.id ?? 'N/A',
+        name: name || fallbackEmail,
+        email: fallbackEmail,
+      };
+    };
+
+    const patientLookup = {};
+    const doctorLookup = {};
+
+    users.forEach((user) => {
+      if (user?.role === 'PATIENT') {
+        patientLookup[String(user.id)] = buildInfo(user.id, 'PATIENT');
+      }
+      if (user?.role === 'DOCTOR') {
+        doctorLookup[String(user.id)] = buildInfo(user.id, 'DOCTOR');
+      }
+    });
+
+    patients.forEach((profile) => {
+      const key = String(profile.id);
+      if (!patientLookup[key]) {
+        patientLookup[key] = buildInfo(profile.id, 'PATIENT');
+      }
+    });
+
+    doctors.forEach((profile) => {
+      const key = String(profile.id);
+      if (!doctorLookup[key]) {
+        doctorLookup[key] = buildInfo(profile.id, 'DOCTOR');
+      }
+    });
+
+    return { patientLookup, doctorLookup };
+  }, [getFullName]);
+
+  const getEntityInfo = useCallback((id, type) => {
+    const key = String(id);
+    const source = type === 'PATIENT' ? patientInfoById : doctorInfoById;
+    const fallbackLabel = type === 'PATIENT' ? 'Unknown Patient' : 'Unknown Doctor';
+
+    return source[key] || {
+      entityId: id ?? 'N/A',
+      profileId: 'N/A',
+      name: fallbackLabel,
+      email: 'N/A',
+    };
+  }, [patientInfoById, doctorInfoById]);
 
   const loadDashboardData = useCallback(async () => {
     setIsLoading(true);
     setError('');
     try {
       if (activeTab === 'overview') {
-        const metricsData = await getTransactionMetrics(token);
+        const [metricsData, ledgerData, users, patients, doctors] = await Promise.all([
+          getTransactionMetrics(token),
+          getGlobalTransactionLedger(token),
+          getAllUsers(token),
+          getAllPatients(token),
+          getAllDoctors(token),
+        ]);
+
         setMetrics(metricsData);
+        setTransactions(ledgerData);
+        const { patientLookup, doctorLookup } = buildIdentityLookups(users, patients, doctors);
+        setPatientInfoById(patientLookup);
+        setDoctorInfoById(doctorLookup);
       } else if (activeTab === 'transactions') {
         // ==================== GLOBAL TRANSACTION LEDGER LOGIC: DATA FETCH ====================
         const [ledgerData, users, patients, doctors] = await Promise.all([
@@ -51,36 +179,9 @@ const AdminTransactionMonitor = () => {
           getAllDoctors(token),
         ]);
 
-        const patientEmailToName = patients.reduce((acc, profile) => {
-          if (profile?.email) {
-            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-            acc[profile.email] = fullName || profile.email;
-          }
-          return acc;
-        }, {});
-
-        const doctorEmailToName = doctors.reduce((acc, profile) => {
-          if (profile?.email) {
-            const fullName = `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim();
-            acc[profile.email] = fullName ? `Dr. ${fullName}` : profile.email;
-          }
-          return acc;
-        }, {});
-
-        const patientLookup = {};
-        const doctorLookup = {};
-
-        users.forEach((user) => {
-          if (user?.role === 'PATIENT') {
-            patientLookup[user.id] = patientEmailToName[user.email] || user.email || `Patient #${user.id}`;
-          }
-          if (user?.role === 'DOCTOR') {
-            doctorLookup[user.id] = doctorEmailToName[user.email] || user.email || `Doctor #${user.id}`;
-          }
-        });
-
-        setPatientNameById(patientLookup);
-        setDoctorNameById(doctorLookup);
+        const { patientLookup, doctorLookup } = buildIdentityLookups(users, patients, doctors);
+        setPatientInfoById(patientLookup);
+        setDoctorInfoById(doctorLookup);
         setTransactions(ledgerData);
       }
     } catch (err) {
@@ -89,7 +190,7 @@ const AdminTransactionMonitor = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [token, activeTab]);
+  }, [token, activeTab, buildIdentityLookups]);
 
   useEffect(() => {
     loadDashboardData();
@@ -137,12 +238,18 @@ const AdminTransactionMonitor = () => {
     const filtered = transactions.filter((tx) => {
       const ledgerStatus = mapLedgerStatus(tx.paymentStatus);
       const query = searchQuery.trim().toLowerCase();
+      const patientInfo = getEntityInfo(tx.patientId, 'PATIENT');
+      const doctorInfo = getEntityInfo(tx.doctorId, 'DOCTOR');
 
       const matchesSearch =
         query.length === 0 ||
         tx.id?.toString().toLowerCase().includes(query) ||
         tx.transactionReference?.toLowerCase().includes(query) ||
-        tx.stripePaymentIntentId?.toLowerCase().includes(query);
+        tx.stripePaymentIntentId?.toLowerCase().includes(query) ||
+        patientInfo.name.toLowerCase().includes(query) ||
+        patientInfo.email.toLowerCase().includes(query) ||
+        doctorInfo.name.toLowerCase().includes(query) ||
+        doctorInfo.email.toLowerCase().includes(query);
 
       const matchesStatus = statusFilter === 'ALL' || ledgerStatus === statusFilter;
       const matchesDateRange = isWithinDateRange(getTransactionDate(tx), dateRangeFilter);
@@ -151,7 +258,23 @@ const AdminTransactionMonitor = () => {
     });
 
     setFilteredTransactions(filtered);
-  }, [searchQuery, statusFilter, dateRangeFilter, transactions]);
+  }, [searchQuery, statusFilter, dateRangeFilter, transactions, patientInfoById, doctorInfoById, getEntityInfo]);
+
+  useEffect(() => {
+    setTransactionPage(1);
+  }, [searchQuery, statusFilter, dateRangeFilter, activeTab]);
+
+  const totalTransactionPages = Math.max(1, Math.ceil(filteredTransactions.length / transactionPageSize));
+  const paginatedTransactions = filteredTransactions.slice(
+    (transactionPage - 1) * transactionPageSize,
+    transactionPage * transactionPageSize
+  );
+
+  useEffect(() => {
+    if (transactionPage > totalTransactionPages) {
+      setTransactionPage(totalTransactionPages);
+    }
+  }, [transactionPage, totalTransactionPages]);
 
   const formatCurrency = (amount) => {
     if (!amount) return 'Rs. 0.00';
@@ -169,6 +292,53 @@ const AdminTransactionMonitor = () => {
     });
   };
 
+  const handleDownloadReport = async () => {
+    try {
+      setIsGeneratingPDF(true);
+      generateMonthlyRevenueReport(transactions, metrics, {
+        patientInfoById,
+        doctorInfoById,
+      });
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate report. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const getTransactionsForRange = (range, sourceTransactions = transactions) => {
+    return sourceTransactions.filter((tx) => isWithinDateRange(getTransactionDate(tx), range));
+  };
+
+  const getDateRangeLabel = (range) => {
+    if (range === 'LAST_7_DAYS') return 'Last 7 Days';
+    if (range === 'LAST_30_DAYS') return 'Last 30 Days';
+    if (range === 'LAST_90_DAYS') return 'Last 90 Days';
+    return 'All Time';
+  };
+
+  const handleDownloadDoctorPayoutReport = async () => {
+    try {
+      setIsGeneratingDoctorPDF(true);
+
+      const reportTransactions = getTransactionsForRange(doctorReportDateRange).filter(
+        (tx) => mapLedgerStatus(tx.paymentStatus) === 'SUCCESS'
+      );
+
+      generateDoctorPayoutReport(
+        reportTransactions,
+        doctorInfoById,
+        getDateRangeLabel(doctorReportDateRange)
+      );
+    } catch (err) {
+      console.error('Error generating doctor payout report:', err);
+      setError('Failed to generate doctor payout report. Please try again.');
+    } finally {
+      setIsGeneratingDoctorPDF(false);
+    }
+  };
+
   // ==================== RENDER SECTIONS ====================
 
   const renderOverview = () => {
@@ -182,6 +352,58 @@ const AdminTransactionMonitor = () => {
 
     return (
       <div className="space-y-6">
+        {/* Download Report Buttons */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <button
+            onClick={handleDownloadReport}
+            disabled={isGeneratingPDF || !transactions.length}
+            className="w-full flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+          >
+            {isGeneratingPDF ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <Download size={18} />
+                <span>Download Monthly Report</span>
+              </>
+            )}
+          </button>
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <select
+              value={doctorReportDateRange}
+              onChange={(e) => setDoctorReportDateRange(e.target.value)}
+              className="w-full sm:w-auto px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-0"
+            >
+              <option value="LAST_30_DAYS">Last 30 Days</option>
+              <option value="LAST_7_DAYS">Last 7 Days</option>
+              <option value="LAST_90_DAYS">Last 90 Days</option>
+              <option value="ALL_TIME">All Time</option>
+            </select>
+
+            <button
+              onClick={handleDownloadDoctorPayoutReport}
+              disabled={isGeneratingDoctorPDF || !transactions.length}
+              className="w-full flex-1 flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {isGeneratingDoctorPDF ? (
+                <>
+                  <Loader2 className="animate-spin" size={18} />
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={18} />
+                  <span>Download Doctor Payout Report</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Metrics Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Total Transactions */}
@@ -325,8 +547,49 @@ const AdminTransactionMonitor = () => {
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No transactions found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <>
+            <div className="md:hidden space-y-3">
+              {paginatedTransactions.map((tx) => {
+                const patient = getEntityInfo(tx.patientId, 'PATIENT');
+                const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
+
+                return (
+                  <div key={tx.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-gray-500">Transaction</p>
+                        <p className="font-bold text-gray-900">#{tx.id}</p>
+                      </div>
+                      <span className={`px-2.5 py-1 rounded-lg font-semibold text-xs ${getStatusBadgeClass(mapLedgerStatus(tx.paymentStatus))}`}>
+                        {mapLedgerStatus(tx.paymentStatus)}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 gap-2 text-sm">
+                      <div><span className="text-gray-500">Date:</span> <span className="text-gray-800">{formatDate(getTransactionDate(tx))}</span></div>
+                      <div><span className="text-gray-500">Patient:</span> <span className="font-medium text-gray-900">{patient.name}</span></div>
+                      <div className="break-all"><span className="text-gray-500">Patient Email:</span> <span className="text-gray-800">{patient.email}</span></div>
+                      <div><span className="text-gray-500">Doctor:</span> <span className="font-medium text-gray-900">{doctor.name}</span></div>
+                      <div className="break-all"><span className="text-gray-500">Doctor Email:</span> <span className="text-gray-800">{doctor.email}</span></div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-green-50 px-3 py-2">
+                        <p className="text-[11px] text-green-700">Gross</p>
+                        <p className="font-semibold text-green-800">{formatCurrency(tx.amount)}</p>
+                      </div>
+                      <div className="rounded-lg bg-indigo-50 px-3 py-2">
+                        <p className="text-[11px] text-indigo-700">Platform Fee</p>
+                        <p className="font-semibold text-indigo-800">{formatCurrency(tx.platformFee)}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="border-b border-gray-200 bg-gray-50">
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
@@ -336,10 +599,22 @@ const AdminTransactionMonitor = () => {
                       Transaction ID
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Patient ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Patient Name
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Patient Email
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Doctor ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Doctor Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
+                      Doctor Email
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider">
                       Gross Amount
@@ -353,16 +628,24 @@ const AdminTransactionMonitor = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTransactions.map((tx) => (
+                  {paginatedTransactions.map((tx) => {
+                    const patient = getEntityInfo(tx.patientId, 'PATIENT');
+                    const doctor = getEntityInfo(tx.doctorId, 'DOCTOR');
+
+                    return (
                     <tr key={tx.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-sm text-gray-600">{formatDate(getTransactionDate(tx))}</td>
                       <td className="px-4 py-3 font-semibold text-gray-900">#{tx.id}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-700">{patient.entityId}</td>
                       <td className="px-4 py-3 font-medium text-gray-700">
-                        {patientNameById[tx.patientId] || `Patient #${tx.patientId}`}
+                        {patient.name}
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{patient.email}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-700">{doctor.entityId}</td>
                       <td className="px-4 py-3 font-medium text-gray-700">
-                        {doctorNameById[tx.doctorId] || `Doctor #${tx.doctorId}`}
+                        {doctor.name}
                       </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{doctor.email}</td>
                       <td className="px-4 py-3">
                         <span className="px-3 py-1 bg-green-50 text-green-700 rounded-lg font-semibold text-sm">
                           {formatCurrency(tx.amount)}
@@ -379,10 +662,35 @@ const AdminTransactionMonitor = () => {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 flex-wrap border-t border-gray-100 pt-4">
+              <p className="text-sm text-gray-600">
+                Showing {(transactionPage - 1) * transactionPageSize + 1} - {Math.min(transactionPage * transactionPageSize, filteredTransactions.length)} of {filteredTransactions.length}
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setTransactionPage((prev) => Math.max(1, prev - 1))}
+                  disabled={transactionPage === 1}
+                  className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-semibold text-gray-700 px-2">Page {transactionPage} / {totalTransactionPages}</span>
+                <button
+                  onClick={() => setTransactionPage((prev) => Math.min(totalTransactionPages, prev + 1))}
+                  disabled={transactionPage === totalTransactionPages}
+                  className="px-3 py-2 text-sm font-semibold rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+            </>
           )}
         </div>
       </div>
@@ -402,7 +710,7 @@ const AdminTransactionMonitor = () => {
       )}
 
       {/* Tab Navigation */}
-      <div className="bg-white borders border-gray-200 rounded-xl shadow-lg p-1 flex gap-1">
+      <div className="bg-white borders border-gray-200 rounded-xl shadow-lg p-1 flex gap-1 overflow-x-auto">
         {[
           { id: 'overview', label: 'Overview', icon: DollarSign },
           { id: 'transactions', label: 'All Transactions', icon: TrendingUp },
@@ -418,7 +726,7 @@ const AdminTransactionMonitor = () => {
                 setStatusFilter('ALL');
                 setDateRangeFilter('LAST_30_DAYS');
               }}
-              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-indigo-600 text-white shadow-md'
                   : 'text-gray-700 hover:bg-gray-50'
