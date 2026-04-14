@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemedicine
+  namespace: medistream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: telemedicine
+  template:
+    metadata:
+      labels:
+        app: telemedicine
+    spec:
+      containers:
+        - name: telemedicine
+          image: medistream-telemedicine:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: medistream-config
+            - secretRef:
+                name: medistream-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemedicine-service
+  namespace: medistream
+spec:
+  selector:
+    app: telemedicine
+  ports:
+    - name: http
+      port: 8083
+      targetPort: 8083
+  type: ClusterIP

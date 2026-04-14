@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointment
+  namespace: medistream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: appointment
+  template:
+    metadata:
+      labels:
+        app: appointment
+    spec:
+      containers:
+        - name: appointment
+          image: medistream-appointment:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8086
+          envFrom:
+            - configMapRef:
+                name: medistream-config
+            - secretRef:
+                name: medistream-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointment-service
+  namespace: medistream
+spec:
+  selector:
+    app: appointment
+  ports:
+    - name: http
+      port: 8086
+      targetPort: 8086
+  type: ClusterIP

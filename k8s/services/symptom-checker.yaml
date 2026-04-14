@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: symptom-checker
+  namespace: medistream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: symptom-checker
+  template:
+    metadata:
+      labels:
+        app: symptom-checker
+    spec:
+      containers:
+        - name: symptom-checker
+          image: medistream-symptom-checker:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8088
+          envFrom:
+            - configMapRef:
+                name: medistream-config
+            - secretRef:
+                name: medistream-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: symptom-checker-service
+  namespace: medistream
+spec:
+  selector:
+    app: symptom-checker
+  ports:
+    - name: http
+      port: 8088
+      targetPort: 8088
+  type: ClusterIP
