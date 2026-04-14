@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment
+  namespace: medistream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment
+  template:
+    metadata:
+      labels:
+        app: payment
+    spec:
+      containers:
+        - name: payment
+          image: medistream-payment:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8087
+          envFrom:
+            - configMapRef:
+                name: medistream-config
+            - secretRef:
+                name: medistream-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: medistream
+spec:
+  selector:
+    app: payment
+  ports:
+    - name: http
+      port: 8087
+      targetPort: 8087
+  type: ClusterIP

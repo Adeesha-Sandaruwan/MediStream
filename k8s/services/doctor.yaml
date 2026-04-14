@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: doctor
+  namespace: medistream
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: doctor
+  template:
+    metadata:
+      labels:
+        app: doctor
+    spec:
+      containers:
+        - name: doctor
+          image: medistream-doctor:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: medistream-config
+            - secretRef:
+                name: medistream-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: doctor-service
+  namespace: medistream
+spec:
+  selector:
+    app: doctor
+  ports:
+    - name: http
+      port: 8084
+      targetPort: 8084
+  type: ClusterIP
