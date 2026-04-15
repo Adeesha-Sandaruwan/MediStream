@@ -1,4 +1,11 @@
+x-common-env: &common-env
+  DB_URL: ${DB_URL:-jdbc:postgresql://aws-1-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require&prepareThreshold=0}
+  DB_USERNAME: ${DB_USERNAME:-postgres.nepfweteejxjuvwqgpek}
+  DB_PASSWORD: ${DB_PASSWORD:-MediStream@Sliit123}
+  JWT_SECRET: ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+
 services:
+  # Optional local DB for development. Current services point to Supabase by default.
   postgres:
     image: postgres:16-alpine
     container_name: medistream-db
@@ -10,5 +17,108 @@ services:
       - "5433:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+
+  auth:
+    build:
+      context: ./backend/auth
+    image: medistream-auth:latest
+    container_name: medistream-auth
+    environment:
+      <<: *common-env
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    ports:
+      - "8081:8081"
+
+  patient:
+    build:
+      context: ./backend/patient
+    image: medistream-patient:latest
+    container_name: medistream-patient
+    environment:
+      <<: *common-env
+    ports:
+      - "8082:8082"
+
+  telemedicine:
+    build:
+      context: ./backend/telemedicine
+    image: medistream-telemedicine:latest
+    container_name: medistream-telemedicine
+    environment:
+      <<: *common-env
+      JITSI_DOMAIN: ${JITSI_DOMAIN:-meet.jit.si}
+      JITSI_ISSUER: ${JITSI_ISSUER:-medistream}
+      JITSI_AUDIENCE: ${JITSI_AUDIENCE:-jitsi}
+      JITSI_SUBJECT: ${JITSI_SUBJECT:-meet.jit.si}
+      JITSI_JWT_SECRET: ${JITSI_JWT_SECRET:-}
+    ports:
+      - "8083:8083"
+
+  doctor:
+    build:
+      context: ./backend/doctor
+    image: medistream-doctor:latest
+    container_name: medistream-doctor
+    environment:
+      <<: *common-env
+      APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment:8086/api/v1}
+      PATIENT_SERVICE_URL: ${PATIENT_SERVICE_URL:-http://patient:8082}
+      TELEMEDICINE_SERVICE_URL: ${TELEMEDICINE_SERVICE_URL:-http://telemedicine:8083}
+      NOTIFICATION_SERVICE_URL: ${NOTIFICATION_SERVICE_URL:-http://notification:8085}
+    ports:
+      - "8084:8084"
+
+  notification:
+    build:
+      context: ./backend/notification
+    image: medistream-notification:latest
+    container_name: medistream-notification
+    environment:
+      <<: *common-env
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-abishekjayasinghe944@gmail.com}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-kedcheitcukmnlxm}
+    ports:
+      - "8085:8085"
+
+  appointment:
+    build:
+      context: ./backend/appointment
+    image: medistream-appointment:latest
+    container_name: medistream-appointment
+    environment:
+      <<: *common-env
+      FEIGN_PATIENT_SERVICE_URL: ${FEIGN_PATIENT_SERVICE_URL:-http://patient:8082}
+      FEIGN_DOCTOR_SERVICE_URL: ${FEIGN_DOCTOR_SERVICE_URL:-http://doctor:8084}
+    ports:
+      - "8086:8086"
+
+  payment:
+    build:
+      context: ./backend/payment
+    image: medistream-payment:latest
+    container_name: medistream-payment
+    environment:
+      <<: *common-env
+      SERVER_PORT: ${PAYMENT_SERVER_PORT:-8087}
+      APPOINTMENT_SERVICE_URL: ${APPOINTMENT_SERVICE_URL:-http://appointment:8086/api/v1}
+      STRIPE_API_KEY: ${STRIPE_API_KEY:-sk_test_demo_dummy_key_for_compose}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_demo_dummy_key_for_compose}
+      EUREKA_CLIENT_ENABLED: "false"
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+    ports:
+      - "8087:8087"
+
+  symptom-checker:
+    build:
+      context: ./backend/symptom-checker
+    image: medistream-symptom-checker:latest
+    container_name: medistream-symptom-checker
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SYMPTOM_CHECKER_ALLOWED_ORIGIN: ${SYMPTOM_CHECKER_ALLOWED_ORIGIN:-http://localhost:5173}
+    ports:
+      - "8088:8088"
+
 volumes:
   postgres-data:
