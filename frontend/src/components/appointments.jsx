@@ -7,12 +7,16 @@ import image from '../assets/land.png';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = import.meta.env.VITE_APPOINTMENT_API_URL || 'http://localhost:8086/api/v1/appointments';
+const EMPTY_AVAILABILITY = [];
 
 const Appointments = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isPatientBookingRoute = location.pathname === '/patient-book-appointment';
   const isOpenCreateForm = Boolean(location.state?.openCreateForm);
+  const selectedPatientId = location.state?.patientId || '';
+  const selectedDoctorId = location.state?.doctorId || '';
+  const selectedDoctorAvailability = location.state?.doctorAvailability || EMPTY_AVAILABILITY;
   const [appointments, setAppointments] = useState([]);
   const [filteredAppointments, setFilteredAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,17 +106,30 @@ const Appointments = () => {
       return;
     }
 
-    setShowForm(true);
-    setEditingAppointment({
-      patientId: location.state?.patientId || '',
-      doctorId: location.state?.doctorId || '',
-      doctorAvailability: location.state?.doctorAvailability || [],
+    const nextEditingAppointment = {
+      patientId: selectedPatientId,
+      doctorId: selectedDoctorId,
+      doctorAvailability: selectedDoctorAvailability,
       appointmentDate: '',
       durationMinutes: '30',
       reason: '',
       notes: ''
+    };
+
+    setShowForm(true);
+    setEditingAppointment((prev) => {
+      const hasSamePatient = (prev?.patientId || '') === nextEditingAppointment.patientId;
+      const hasSameDoctor = (prev?.doctorId || '') === nextEditingAppointment.doctorId;
+      const hasSameAvailability =
+        JSON.stringify(prev?.doctorAvailability || []) === JSON.stringify(nextEditingAppointment.doctorAvailability);
+
+      if (hasSamePatient && hasSameDoctor && hasSameAvailability) {
+        return prev;
+      }
+
+      return nextEditingAppointment;
     });
-  }, [location.state, isOpenCreateForm]);
+  }, [isOpenCreateForm, selectedPatientId, selectedDoctorId, selectedDoctorAvailability]);
 
   const handleRefresh = () => {
     fetchAppointments();

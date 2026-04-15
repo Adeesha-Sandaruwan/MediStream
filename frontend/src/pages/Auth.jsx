@@ -15,19 +15,18 @@ export default function Auth({ initialMode = 'login' }) {
     
     const { login, register, googleLogin } = useAuth();
     const navigate = useNavigate();
+    const queryMode = searchParams.get('mode');
 
     useEffect(() => {
-        const queryMode = searchParams.get('mode');
+        let nextIsLogin = initialMode !== 'register';
         if (queryMode === 'register') {
-            setIsLogin(false);
-            return;
+            nextIsLogin = false;
+        } else if (queryMode === 'login') {
+            nextIsLogin = true;
         }
-        if (queryMode === 'login') {
-            setIsLogin(true);
-            return;
-        }
-        setIsLogin(initialMode !== 'register');
-    }, [initialMode, searchParams]);
+
+        setIsLogin((prev) => (prev === nextIsLogin ? prev : nextIsLogin));
+    }, [initialMode, queryMode]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -151,11 +150,9 @@ export default function Auth({ initialMode = 'login' }) {
                         <GoogleLogin
                             onSuccess={handleGoogleSuccess}
                             onError={() => setError('Google authentication failed')}
-                            useOneTap
                             theme="outline"
                             size="large"
                             shape="pill"
-                            width="100%"
                         />
                     </div>
 
