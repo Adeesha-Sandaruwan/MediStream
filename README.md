@@ -1,3 +1,5 @@
+<img width="1891" height="942" alt="image" src="https://github.com/user-attachments/assets/19a8d555-e69e-410a-b80e-75888434b6f1" />
+
 # MediStream
 
 Healthcare appointment and telemedicine platform built with Spring Boot microservices and a React frontend.
