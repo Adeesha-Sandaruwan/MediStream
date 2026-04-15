@@ -1,19 +1,33 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 import { Activity, Mail, Lock, User as UserIcon } from 'lucide-react';
 
-export default function Auth() {
-    const [isLogin, setIsLogin] = useState(true);
+export default function Auth({ initialMode = 'login' }) {
+    const [isLogin, setIsLogin] = useState(initialMode !== 'register');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [role, setRole] = useState('PATIENT');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [searchParams] = useSearchParams();
     
     const { login, register, googleLogin } = useAuth();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const queryMode = searchParams.get('mode');
+        if (queryMode === 'register') {
+            setIsLogin(false);
+            return;
+        }
+        if (queryMode === 'login') {
+            setIsLogin(true);
+            return;
+        }
+        setIsLogin(initialMode !== 'register');
+    }, [initialMode, searchParams]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();

@@ -1,67 +1,208 @@
-# AI-Enabled Smart Healthcare Appointment & Telemedicine Platform
+# MediStream
 
-> **⚠️ DEVELOPMENT STATUS: ACTIVE**
-> This project is currently in the early developmental phase. Microservices and frontend components are actively being scaffolded. Features and APIs are subject to change.
+Healthcare appointment and telemedicine platform built with Spring Boot microservices and a React frontend.
 
-## 📖 Overview
-A cloud-native, distributed healthcare platform designed to facilitate doctor appointments, secure video telemedicine consultations, medical report management, and AI-based preliminary health suggestions. Built using a robust Microservices architecture.
+## Repository
 
-## 🚀 Tech Stack
-* **Backend:** Java 21, Spring Boot (Microservices)
-* **Frontend:** React.js
-* **Architecture:** API Gateway, Service Discovery, RESTful APIs
-* **Deployment & Orchestration:** Docker, Kubernetes
-* **Security:** OAuth 2.0 / JWT (Role-Based Access Control)
+- GitHub: https://github.com/Adeesha-Sandaruwan/MediStream
 
-## 🏗️ Architecture & Services
-The backend is divided into the following independent microservices:
-* `api-gateway`: Single entry point for all client requests.
-* `discovery-server`: Service registry for microservice communication.
-* `auth`: Centralized authentication, authorization, and user management.
-* `patient-service`: Patient profile management, medical history, and report uploads.
-* `doctor-service`: Doctor profiles, availability scheduling, and digital prescriptions.
-* `appointment-service`: Booking, modifying, and tracking appointment statuses.
-* `telemedicine-service`: Secure real-time video consultation integration.
-* `payment-service`: Secure gateway integration for consultation fees.
-* `notification-service`: Asynchronous email and SMS alerts.
-* `ai-symptom-checker` (Optional): AI-powered health suggestions based on symptoms.
+## Services
 
-## 👥 User Roles
-1. **Patient:** Browse doctors, book appointments, attend video consultations, upload reports.
-2. **Doctor:** Manage availability, conduct consultations, issue digital prescriptions.
-3. **Admin:** Manage user accounts, verify doctors, oversee operations.
+Backend microservices:
 
-## 🛠️ Local Development Setup
+1. auth (8081)
+2. patient (8082)
+3. telemedicine (8083)
+4. doctor (8084)
+5. notification (8085)
+6. appointment (8086)
+7. payment (8087)
+8. symptom-checker (8088)
 
-### Prerequisites
-Ensure you have the following installed on your local machine:
-* Java Development Kit (JDK) 21
-* Maven
-* Node.js & npm (for the React frontend)
-* Git
+Frontend:
 
-### Installation Steps
-1. **Clone the repository:**
-   ```bash
-   git clone <https://github.com/Adeesha-Sandaruwan/MediStream>
-   cd <backend>
+- React (Vite) in `frontend` (default: 5173)
 
-2. Backend Setup (Microservices):
-   
-Navigate to the specific service you want to run (e.g., the auth service):
+## Prerequisites
 
-Bash
-cd backend/auth
-mvn clean install
-mvn spring-boot:run
-Note: Repeat this process in separate terminal windows for each microservice.
+Required:
 
+1. Git
+2. Docker Desktop (Linux containers mode)
+3. Node.js and npm
 
-3. Frontend Setup (React):
-   
-Navigate to the frontend directory:
+For Kubernetes mode:
 
-Bash
+4. Kubernetes enabled in Docker Desktop
+5. kubectl
+
+Optional for non-container local runs:
+
+6. Java 21
+7. Maven
+
+## Clone
+
+```bash
+git clone https://github.com/Adeesha-Sandaruwan/MediStream
+cd MediStream
+```
+
+## Option A: Docker Compose (Recommended for Daily Development)
+
+### Start all backend services
+
+```bash
+docker compose up --build -d
+```
+
+### Check status
+
+```bash
+docker compose ps
+```
+
+### View logs
+
+```bash
+docker compose logs -f auth
+docker compose logs -f patient
+docker compose logs -f doctor
+```
+
+### Start frontend
+
+```bash
 cd frontend
 npm install
-npm start
+npm run dev
+```
+
+### Stop services
+
+```bash
+docker compose stop
+```
+
+### Remove containers and network
+
+```bash
+docker compose down
+```
+
+### Remove volumes (deletes local postgres data)
+
+```bash
+docker compose down -v
+```
+
+Daily usage:
+
+- After backend code changes: `docker compose up --build -d`
+- Without backend changes: `docker compose up -d`
+
+## Option B: Kubernetes (Docker Desktop)
+
+Kubernetes manifests are in `k8s`.
+
+### 1. Ensure context
+
+```bash
+kubectl config use-context docker-desktop
+kubectl get nodes
+```
+
+### 2. Apply namespace and config
+
+```bash
+kubectl apply -f k8s/namespace.yaml
+kubectl apply -f k8s/configmap.yaml
+```
+
+### 3. Create/apply secret
+
+Copy `k8s/secret.example.yaml` to `k8s/secret.yaml`, fill values, then:
+
+```powershell
+kubectl apply -f k8s/secret.yaml
+```
+
+### 4. Deploy services
+
+```bash
+kubectl apply -f k8s/services
+```
+
+### 5. Verify
+
+```bash
+kubectl get pods -n medistream
+kubectl get svc -n medistream
+```
+
+Optional:
+
+```powershell
+.\verify-k8s.ps1
+```
+
+### 6. Port-forward for localhost frontend calls
+
+```powershell
+.\start-port-forwards.ps1
+```
+
+Keep those terminal windows running while testing from frontend.
+
+### 7. Start frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Local Endpoints
+
+Backend:
+
+- http://localhost:8081 (auth)
+- http://localhost:8082 (patient)
+- http://localhost:8083 (telemedicine)
+- http://localhost:8084 (doctor)
+- http://localhost:8085 (notification)
+- http://localhost:8086 (appointment)
+- http://localhost:8087 (payment)
+- http://localhost:8088 (symptom-checker)
+
+Frontend:
+
+- http://localhost:5173
+
+## Troubleshooting
+
+1. Docker engine pipe error (`dockerDesktopLinuxEngine` not found)
+   - Start/restart Docker Desktop.
+2. Pod in `CrashLoopBackOff`
+   - Check logs: `kubectl logs -n medistream deployment/<service-name>`
+   - Check details: `kubectl describe pod -n medistream <pod-name>`
+   - Most often caused by missing/invalid secret values.
+3. Frontend cannot reach backend in Kubernetes mode
+   - Confirm port-forward terminals are running.
+   - Confirm pods are `1/1 Running`.
+4. Compose mode not reflecting backend changes
+   - Rebuild: `docker compose up --build -d`
+
+## Deliverables Included
+
+- Dockerfiles for all backend services
+- Root `docker-compose.yml` for full local startup
+- Kubernetes manifests in `k8s`
+- Helper scripts:
+  - `verify-k8s.ps1`
+  - `start-port-forwards.ps1`
+
+## Group
+
+- Group ID: SE55
+- Member list: see `members.txt`

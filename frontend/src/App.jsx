@@ -17,6 +17,7 @@ import PatientDoctorSearch from './pages/PatientDoctorSearch';
 import PatientPrescriptions from './pages/PatientPrescriptions';
 import PatientAppointments from './pages/PatientAppointments';
 import PatientSymptomChecker from './pages/PatientSymptomChecker';
+import HomePage from './pages/HomePage';
 import { Activity, LogOut } from 'lucide-react';
 
 const ProtectedRoute = ({ children, allowedRoles, requireVerified }) => {
@@ -126,12 +127,13 @@ export default function App() {
             {token && <Navbar />}
             
             <Routes>
+                <Route path="/" element={token ? <ProtectedRoute><RootRouter /></ProtectedRoute> : <HomePage />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/login" element={<Auth initialMode="login" />} />
+                <Route path="/register" element={<Auth initialMode="register" />} />
                 
                 <Route path="/appointments" element={<ProtectedRoute allowedRoles={['ADMIN']}><Appointments /></ProtectedRoute>} />
                 <Route path="/notifications" element={<ProtectedRoute allowedRoles={['ADMIN', 'DOCTOR']}><Notifications /></ProtectedRoute>} />
-                
-                <Route path="/" element={<ProtectedRoute><RootRouter /></ProtectedRoute>} />
 
                 <Route path="/patient-dashboard" element={<ProtectedRoute allowedRoles={['PATIENT']}><PatientDashboard /></ProtectedRoute>} />
                 <Route path="/profile" element={
